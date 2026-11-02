@@ -159,8 +159,53 @@ async function rangs(env, tableCle, pincabId, score) {
   return { pincab: (surPincab?.n || 0) + 1, tous: (surTous?.n || 0) + 1 };
 }
 
+// NOUVEAU : nom de pincab déjà utilisé par un autre pincab ?
+async function nomPincabPris(env, nom, saufId) {
+  const r = await env.DB.prepare("SELECT 1 FROM pincabs WHERE lower(trim(nom)) = lower(?) AND id <> ?")
+    .bind(nom, saufId || "").first();
+  return !!r;
+}
+
+// NOUVEAU : meilleur score de chaque carte sur chaque table, sur les pincabs validés (+ le pincab qui demande)
+const MEILLEURS_SQL = `
+  WITH m AS (SELECT s.table_cle, s.carte_id, MAX(s.score) AS sc FROM scores s JOIN pincabs p ON p.id = s.pincab_id
+              WHERE p.bloque = 0 AND (p.approuve = 1 OR p.id = ?1) GROUP BY s.table_cle, s.carte_id)`;
+
 // ------------------------------------------------------------------ API
 const API = {
+  // NOUVEAU : joueurs qui ont mis des scores en ligne (onglet « Joueurs » du Tableau des scores de PincabOS)
+  async "GET /api/joueurs"(req, env, url) {
+    const pc = url.searchParams.get("pc") || "";
+    const r = await env.DB.prepare(`${MEILLEURS_SQL},
+      t AS (SELECT table_cle, MAX(sc) AS top FROM m GROUP BY table_cle)
+      SELECT c.id AS carte_id, c.pseudo, c.initiales, COUNT(*) AS nb_tables,
+             SUM(CASE WHEN m.sc = t.top THEN 1 ELSE 0 END) AS nb_records, MAX(m.sc) AS meilleur,
+             (SELECT s2.table_nom FROM scores s2 WHERE s2.carte_id = c.id ORDER BY s2.score DESC LIMIT 1) AS table_meilleur,
+             (SELECT p2.nom FROM scores s3 JOIN pincabs p2 ON p2.id = s3.pincab_id WHERE s3.carte_id = c.id
+               ORDER BY s3.ajoute DESC LIMIT 1) AS pincab
+        FROM m JOIN t ON t.table_cle = m.table_cle JOIN cartes c ON c.id = m.carte_id
+       GROUP BY c.id ORDER BY nb_records DESC, meilleur DESC LIMIT 200`).bind(pc).all();
+    return json({ ok: true, joueurs: r.results || [] });
+  },
+
+  // NOUVEAU : fiche en ligne d'un joueur : sa place sur chaque table (tous les pincabs validés)
+  async "GET /api/joueur"(req, env, url) {
+    const pc = url.searchParams.get("pc") || "", id = url.searchParams.get("id") || "";
+    const carte = await env.DB.prepare("SELECT id, pseudo, initiales FROM cartes WHERE id = ?").bind(id).first();
+    if (!carte) return erreur("carte_inconnue", 404);
+    const r = await env.DB.prepare(`${MEILLEURS_SQL}
+      SELECT m.table_cle, m.sc AS score,
+             (SELECT COUNT(*) FROM m m2 WHERE m2.table_cle = m.table_cle AND m2.sc > m.sc) + 1 AS rang,
+             (SELECT s.table_nom FROM scores s WHERE s.table_cle = m.table_cle ORDER BY s.ajoute DESC LIMIT 1) AS table_nom,
+             (SELECT s.systeme FROM scores s WHERE s.table_cle = m.table_cle LIMIT 1) AS systeme,
+             (SELECT p.nom FROM scores s JOIN pincabs p ON p.id = s.pincab_id WHERE s.carte_id = m.carte_id
+               AND s.table_cle = m.table_cle ORDER BY s.score DESC LIMIT 1) AS pincab,
+             (SELECT s.ajoute FROM scores s WHERE s.carte_id = m.carte_id AND s.table_cle = m.table_cle
+               ORDER BY s.score DESC LIMIT 1) AS ajoute
+        FROM m WHERE m.carte_id = ?2 ORDER BY rang, score DESC LIMIT 300`).bind(pc, id).all();
+    return json({ ok: true, pseudo: carte.pseudo, initiales: carte.initiales, tables: r.results || [] });
+  },
+
   // Le pincab s'active une fois : il reçoit son identifiant et sa clé de signature.
   async "POST /api/pincab/activer"(req, env) {
     const corps = await lireJson(req);
@@ -170,6 +215,8 @@ const API = {
     const hier = new Date(Date.now() - 86400000).toISOString();
     const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM pincabs WHERE ip = ? AND cree > ?").bind(ip, hier).first();
     if ((n?.n || 0) >= Number(env.LIMITE_PINCABS_JOUR || MAX_PINCABS_PAR_IP_JOUR)) return erreur("trop_de_demandes", 429);
+    // NOUVEAU : deux pincabs ne peuvent pas porter le même nom (majuscules / minuscules ignorées)
+    if (await nomPincabPris(env, nom, "")) return erreur("nom_deja_pris", 409);
     const id = identifiant(9);
     const secret = b64urlEncode(aleatoire(32));
     await env.DB.prepare("INSERT INTO pincabs (id, nom, secret, cree, ip) VALUES (?, ?, ?, ?, ?)")
@@ -205,6 +252,7 @@ const API = {
     if (!(x >= t && x - t <= 600)) return erreur("qr_expire");
     const nom = String(qr.donnees.nom || "").replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 40);
     if (nom.length < 2) return erreur("nom_invalide");
+    if (await nomPincabPris(env, nom, qr.pincab.id)) return erreur("nom_deja_pris", 409);   // NOUVEAU
     await env.DB.prepare("UPDATE pincabs SET nom = ? WHERE id = ?").bind(nom, qr.pincab.id).run();
     return json({ ok: true, nom });
   },
@@ -298,6 +346,9 @@ const API = {
     const hier = new Date(Date.now() - 86400000).toISOString();
     const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM cartes WHERE ip = ? AND cree > ?").bind(ip, hier).first();
     if ((n?.n || 0) >= Number(env.LIMITE_CARTES_JOUR || MAX_CARTES_PAR_IP_JOUR)) return erreur("trop_de_demandes", 429);
+    // NOUVEAU : deux cartes joueurs ne peuvent pas porter le même pseudo (majuscules / minuscules ignorées)
+    const pris = await env.DB.prepare("SELECT 1 FROM cartes WHERE lower(trim(pseudo)) = lower(?)").bind(pseudo).first();
+    if (pris) return erreur("pseudo_deja_pris", 409);
     const code = codeCarte();
     const id = identifiant(9);
     await env.DB.prepare("INSERT INTO cartes (id, pseudo, initiales, jeton_hash, cree, ip) VALUES (?, ?, ?, ?, ?, ?)")

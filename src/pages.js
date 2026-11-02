@@ -122,7 +122,7 @@ var TEXTES = {
       score_invalide: "Score invalide.", table_invalide: "Table invalide.", carte_requise: "Carte joueur nécessaire.",
       initiales_prises: "Les initiales {} sont déjà utilisées par une autre carte sur ce pincab. Crée une carte avec d'autres initiales.",
       deja_en_ligne: "Ce score est déjà en ligne.", code_inconnu: "Code inconnu. Vérifie-le et réessaie.",
-      pseudo_invalide: "Pseudo trop court (2 caractères minimum).", initiales_invalides: "Initiales invalides (1 à 3 lettres ou chiffres).",
+      pseudo_invalide: "Pseudo trop court (2 caractères minimum).", pseudo_deja_pris: "Ce pseudo est déjà utilisé par un autre joueur : choisissez-en un autre.", initiales_invalides: "Initiales invalides (1 à 3 lettres ou chiffres).",
       trop_de_demandes: "Trop de demandes depuis cette connexion. Réessaie demain.", erreur_serveur: "Erreur du serveur. Réessaie plus tard.",
       acces_refuse: "Clé d'administration incorrecte (attention aux majuscules ajoutées par le clavier du téléphone).", introuvable: "Page introuvable."
     },
@@ -165,7 +165,7 @@ var TEXTES = {
       score_invalide: "Invalid score.", table_invalide: "Invalid table.", carte_requise: "Player card required.",
       initiales_prises: "The initials {} are already used by another card on this pincab. Create a card with other initials.",
       deja_en_ligne: "This score is already online.", code_inconnu: "Unknown code. Check it and try again.",
-      pseudo_invalide: "Nickname too short (2 characters minimum).", initiales_invalides: "Invalid initials (1 to 3 letters or digits).",
+      pseudo_invalide: "Nickname too short (2 characters minimum).", pseudo_deja_pris: "This nickname is already used by another player: choose another one.", initiales_invalides: "Invalid initials (1 to 3 letters or digits).",
       trop_de_demandes: "Too many requests from this connection. Try again tomorrow.", erreur_serveur: "Server error. Try again later.",
       acces_refuse: "Wrong admin key (watch out for capital letters added by the phone keyboard).", introuvable: "Page not found."
     },
