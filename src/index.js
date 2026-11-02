@@ -196,6 +196,19 @@ const API = {
     return json({ ok: true, nom: r.nom, approuve: !!r.approuve, bloque: !!r.bloque });
   },
 
+  // NOUVEAU : le pincab change son nom (demande signée avec sa clé : personne d'autre ne peut le faire)
+  async "POST /api/pincab/renommer"(req, env) {
+    const corps = await lireJson(req);
+    const qr = await lireQR(env, corps.p, corps.g, "renommer");
+    if (qr.erreur) return erreur(qr.erreur);
+    const t = Math.floor(Date.now() / 1000), x = Number(qr.donnees.x || 0);
+    if (!(x >= t && x - t <= 600)) return erreur("qr_expire");
+    const nom = String(qr.donnees.nom || "").replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 40);
+    if (nom.length < 2) return erreur("nom_invalide");
+    await env.DB.prepare("UPDATE pincabs SET nom = ? WHERE id = ?").bind(nom, qr.pincab.id).run();
+    return json({ ok: true, nom });
+  },
+
   // NOUVEAU : cartes liées à ce pincab (le pincab ferme son QR « Lier une carte » dès qu'une carte est liée)
   async "GET /api/pincab/liens"(req, env, url) {
     const pc = url.searchParams.get("pc") || "";
