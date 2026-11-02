@@ -89,6 +89,15 @@ border-radius:12px;padding:14px;text-align:center;word-break:break-all;user-sele
 .logo img{height:30px;width:auto;vertical-align:middle}
 .hero{display:flex;justify-content:center}.hero img{height:150px;width:auto}
 .systeme{display:inline-flex;align-items:center;gap:5px}
+.m-txt{position:relative;margin-bottom:.62em}
+span.m-txt{display:inline-block}
+.m-txt::after{content:attr(data-m);position:absolute;left:0;right:0;top:100%;margin-top:-.12em;transform:scaleY(-1);
+pointer-events:none;text-shadow:none;opacity:.9;
+-webkit-mask-image:linear-gradient(to top,rgba(0,0,0,.42),rgba(0,0,0,0) 78%);mask-image:linear-gradient(to top,rgba(0,0,0,.42),rgba(0,0,0,0) 78%)}
+.m-img{position:relative;display:inline-block;line-height:0;margin-bottom:13px;vertical-align:middle}
+.m-img.p{margin-bottom:7px}.hero .m-img{margin-bottom:64px}
+.m-img>.m-reflet{position:absolute;left:0;top:100%;margin-top:1px;transform:scaleY(-1);pointer-events:none;filter:none;
+-webkit-mask-image:linear-gradient(to top,rgba(0,0,0,.4),rgba(0,0,0,0) 45%);mask-image:linear-gradient(to top,rgba(0,0,0,.4),rgba(0,0,0,0) 45%)}
 @media (prefers-reduced-motion:no-preference){.cadre{animation:tourne 6s linear infinite;background-size:300% 300%}
 @keyframes tourne{0%{background-position:0 50%}50%{background-position:100% 50%}100%{background-position:0 50%}}}
 `;
@@ -238,6 +247,14 @@ function systeme(sy) {
   var texte = sy === "VPX" ? "Visual Pinball" : (sy === "PBFX" ? "Pinball FX" : (sy || ""));
   return el("span", { class: "systeme" }, nom ? ico(nom, "petite") : null, texte);
 }
+// NOUVEAU : effet miroir (reflet sous le texte ou l'image, comme dans le Tableau des scores de PincabOS)
+function mt(e) { e.classList.add("m-txt"); e.setAttribute("data-m", e.textContent); return e; }
+function mi(img) {
+  var reflet = img.cloneNode(false);
+  reflet.className += " m-reflet";
+  reflet.setAttribute("alt", ""); reflet.setAttribute("aria-hidden", "true");
+  return el("span", { class: "m-img" + (/petite/.test(img.className) ? " p" : "") }, img, reflet);
+}
 function boutonIco(nom, texte, attrs) {
   attrs = attrs || {};
   attrs.class = ((attrs.class || "") + " avec-ico").trim();
@@ -293,7 +310,13 @@ function ligneScore(rang, haut, bas, droite, lien, moi, nomTable) {
     el("div", { class: "rang", style: "color:" + couleur }, String(rang)),
     nomTable ? wheel(nomTable) : null,
     el("div", { class: "milieu" }, el("b", {}, haut), el("span", { class: "petit" }, bas)),
-    el("div", { class: "droite" }, droite));
+    el("div", { class: "droite" }, miroirDroite(droite)));
+}
+function miroirDroite(droite) {
+  // NOUVEAU : le score de la ligne a son reflet (le badge éventuel reste tel quel)
+  var d = Array.isArray(droite) ? droite.slice() : [droite];
+  if (typeof d[0] === "string") d[0] = mt(el("span", {}, d[0]));
+  return d;
 }
 
 // ------------------------------------------------------------------ pages
@@ -333,7 +356,7 @@ function pageAccueil() {
         el("div", { class: "grand or" }, nombre(valeur)), el("div", { class: "petit" }, texte));
     }
     afficher(entete(),
-      el("div", { class: "hero" }, el("img", { src: "/images/scores.png", alt: "" })),
+      el("div", { class: "hero" }, mi(el("img", { src: "/images/scores.png", alt: "" }))),
       el("div", { class: "champ" }, el("label", { for: "recherche" }, T.recherche), champ), resultats,
       el("div", { class: "trois" }, stat("table", r.stats.pincabs, T.pincabs), stat("joueurs", r.stats.joueurs, T.joueurs),
         stat("meilleur-score", r.stats.scores, T.scores)),
@@ -349,7 +372,7 @@ function carteScore(s, badge) {
     wheel(s.table, "grande"),
     el("div", { style: "font-weight:800;font-size:18px" }, s.table),
     el("div", { class: "petit" }, systeme(s.systeme), " · " + s.pincab + (s.date ? " · " + date(s.date) : "")),
-    el("div", { class: "score" }, nombre(s.score)),
+    mt(el("div", { class: "score" }, nombre(s.score))),
     s.initiales ? el("div", { class: "cyan", style: "font-family:Anton,Impact,sans-serif;font-size:28px;letter-spacing:2px" }, s.initiales) : null));
 }
 function blocRangs(rangs) {
@@ -413,7 +436,7 @@ function pageScan() {
             wheel(s.table, "grande"),
             el("div", { style: "font-weight:800;font-size:18px" }, s.table),
             el("div", { class: "petit" }, systeme(s.systeme), " · " + s.pincab),
-            el("div", { class: "score" }, nombre(s.score)),
+            mt(el("div", { class: "score" }, nombre(s.score))),
             blocRangs(x.rangs),
             x.ancien_record && x.ancien_record < s.score ? el("div", { class: "petit" }, el("span", { style: "text-decoration:line-through;color:#FF7A7A" }, nombre(x.ancien_record))) : null)),
           el("div", { class: "actions" }, boutonIco("podium", T.voir_classement, { class: "bouton", href: lienTable })));
@@ -444,15 +467,16 @@ function pageCarte() {
     });
     afficher(entete(),
       el("h1", { class: "titre", style: "font-size:22px" }, T.carte_titre),
+      // NOUVEAU : tout ce qui est dans le cadre de la carte a son reflet (effet miroir)
       el("div", { class: "carte-joueur" }, el("div", {},
         el("div", { style: "display:flex;justify-content:space-between;align-items:flex-start;gap:10px" },
-          el("div", {}, el("div", { class: "section", style: "margin:0" }, "PINCABOS"), el("div", { style: "font-weight:800;font-size:20px" }, r.pseudo)),
-          el("div", { class: "ini" }, r.initiales)),
+          el("div", {}, mt(el("div", { class: "section", style: "margin:0 0 .62em" }, "PINCABOS")), mt(el("div", { style: "font-weight:800;font-size:20px" }, r.pseudo))),
+          mt(el("div", { class: "ini" }, r.initiales))),
         el("div", { class: "trois" },
-          el("div", {}, ico("trophee", "moyenne"), el("div", { class: "grand", style: "color:#FFE27A" }, String(r.stats.records)), el("div", { class: "petit" }, T.records)),
-          el("div", {}, ico("podium", "moyenne"), el("div", { class: "grand", style: "color:#FFC83D" }, String(r.stats.podiums)), el("div", { class: "petit" }, T.podiums)),
-          el("div", {}, ico("meilleur-score", "moyenne"), el("div", { class: "grand", style: "color:#FFB347" }, String(r.stats.scores)), el("div", { class: "petit" }, T.scores))),
-        el("div", { class: "petit avec-ico", style: "justify-content:flex-start;gap:6px" }, ico("table", "petite"), r.pincabs.length ? T.liee_a + " : " + r.pincabs.map(function (x) { return x.nom; }).join(", ") : T.aucun_pincab))),
+          el("div", {}, mi(ico("trophee", "moyenne")), mt(el("div", { class: "grand", style: "color:#FFE27A" }, String(r.stats.records))), mt(el("div", { class: "petit" }, T.records))),
+          el("div", {}, mi(ico("podium", "moyenne")), mt(el("div", { class: "grand", style: "color:#FFC83D" }, String(r.stats.podiums))), mt(el("div", { class: "petit" }, T.podiums))),
+          el("div", {}, mi(ico("meilleur-score", "moyenne")), mt(el("div", { class: "grand", style: "color:#FFB347" }, String(r.stats.scores))), mt(el("div", { class: "petit" }, T.scores)))),
+        el("div", { class: "petit avec-ico", style: "justify-content:flex-start;gap:6px" }, mi(ico("table", "petite")), mt(el("span", {}, r.pincabs.length ? T.liee_a + " : " + r.pincabs.map(function (x) { return x.nom; }).join(", ") : T.aucun_pincab))))),
       el("div", { class: "section" }, T.mes_scores),
       liste.length ? el("div", { class: "liste" }, liste) : el("div", { class: "vide" }, T.aucun),
       el("div", { class: "actions" }, zoneCode,
