@@ -9,7 +9,18 @@
 //    score d'un autre.
 //  - « Tous les pincabs » ne montre que les pincabs validés par l'administrateur.
 // =====================================================================
-import { PAGE_HTML, APP_JS, APP_CSS } from "./pages.js";
+import { PAGE_HTML as PAGE_BRUTE, APP_JS, APP_CSS } from "./pages.js";
+
+// CORRECTIF : le code des pages porte une empreinte dans son adresse (/app.js?v=...) : après chaque mise à
+// jour du site, les navigateurs chargent tout de suite la nouvelle version (plus de vieille copie en cache)
+function empreinte(texte) {
+  let h = 2166136261;
+  for (let i = 0; i < texte.length; i++) { h ^= texte.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0).toString(36);
+}
+const VERSION_PAGES = empreinte(APP_JS + APP_CSS);
+const PAGE_HTML = PAGE_BRUTE.replace('src="/app.js"', `src="/app.js?v=${VERSION_PAGES}"`)
+  .replace('href="/app.css"', `href="/app.css?v=${VERSION_PAGES}"`);
 
 const VERSION_QR = 1;
 const DUREE_LIEN_MAX = 3600;          // s : validité d'un QR « Lier une carte »
@@ -380,6 +391,7 @@ const ENTETES_PAGE = {
   "content-security-policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
     "font-src https://fonts.gstatic.com; img-src 'self' data: https://wsrv.nl; connect-src 'self'; frame-ancestors 'none'",
   "referrer-policy": "no-referrer",
+  "cache-control": "no-cache",
   "x-content-type-options": "nosniff",
 };
 
@@ -392,11 +404,11 @@ export default {
       if (url.pathname.startsWith("/api/")) return erreur("introuvable", 404);
       if (url.pathname === "/app.js") {
         return new Response(APP_JS, { headers: { "content-type": "text/javascript; charset=utf-8",
-                                                  "cache-control": "public, max-age=300" } });
+                                                  "cache-control": "public, max-age=31536000, immutable" } });
       }
       if (url.pathname === "/app.css") {
         return new Response(APP_CSS, { headers: { "content-type": "text/css; charset=utf-8",
-                                                   "cache-control": "public, max-age=300" } });
+                                                   "cache-control": "public, max-age=31536000, immutable" } });
       }
       if (PAGES.has(url.pathname) && req.method === "GET") return new Response(PAGE_HTML, { headers: ENTETES_PAGE });
       return new Response("Introuvable", { status: 404 });
