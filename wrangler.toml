@@ -1,0 +1,17 @@
+# PincabOS Scores en ligne — adresse : https://pincab-scores.pincab.workers.dev
+name = "pincab-scores"
+main = "src/index.js"
+compatibility_date = "2026-06-01"
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "pincab-scores"
+database_id = "34d1a80f-5e0e-4277-8816-cb8c43da412b"
+
+# Images du site (icônes reprises de PincabOS), servies directement par Cloudflare
+[assets]
+directory = "./public"
+
+# Clé d'administration (validation / blocage des pincabs) : jamais ici, mais dans
+# Cloudflare > Workers & Pages > pincab-scores > Settings > Variables and Secrets (type « Secret »)
