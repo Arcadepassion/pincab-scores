@@ -3,6 +3,7 @@ name = "pincab-scores"
 main = "src/index.js"
 compatibility_date = "2026-06-01"
 workers_dev = true
+preview_urls = false   # pas d'adresses d'aperçu : une seule adresse publique
 
 [[d1_databases]]
 binding = "DB"
