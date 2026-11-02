@@ -196,6 +196,24 @@ const API = {
     return json({ ok: true, nom: r.nom, approuve: !!r.approuve, bloque: !!r.bloque });
   },
 
+  // NOUVEAU : cartes liées à ce pincab (le pincab ferme son QR « Lier une carte » dès qu'une carte est liée)
+  async "GET /api/pincab/liens"(req, env, url) {
+    const pc = url.searchParams.get("pc") || "";
+    const r = await env.DB.prepare(
+      `SELECT c.pseudo, l.initiales, l.cree FROM liens l JOIN cartes c ON c.id = l.carte_id
+        WHERE l.pincab_id = ? ORDER BY l.cree DESC LIMIT 500`).bind(pc).all();
+    return json({ ok: true, liens: r.results || [] });
+  },
+
+  // NOUVEAU : un score précis est-il en ligne, et par qui (le pincab ferme son QR dès qu'il l'est)
+  async "GET /api/pincab/score"(req, env, url) {
+    const pc = url.searchParams.get("pc") || "", u = url.searchParams.get("u") || "";
+    const r = await env.DB.prepare(
+      `SELECT c.pseudo, s.initiales, s.ajoute FROM scores s JOIN cartes c ON c.id = s.carte_id
+        WHERE s.id = ? AND s.pincab_id = ?`).bind(u, pc).first();
+    return json({ ok: true, en_ligne: !!r, pseudo: r?.pseudo || "", initiales: r?.initiales || "" });
+  },
+
   // Le téléphone vient de scanner un QR de score : on le vérifie et on l'affiche (rien n'est publié).
   async "POST /api/verifier"(req, env) {
     const corps = await lireJson(req);
