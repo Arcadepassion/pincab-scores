@@ -136,7 +136,9 @@ var TEXTES = {
     lier_titre: "LIER MA CARTE À CE PINCAB", lier_ok: "CARTE LIÉE !", lier_ok_texte: "Ta carte {} est liée à « {} ». Tes prochains scores avec les initiales {} pourront être mis en ligne.",
     lier_deja: "Ta carte est déjà liée à « {} ».", retour: "Retour", joueur: "JOUEUR",
     donnees_qr: "Seuls les scores scannés depuis un pincab PincabOS apparaissent ici.", admin: "Administration", cle_admin: "Clé d'administration",
-    approuver: "Valider", bloquer: "Bloquer", debloquer: "Débloquer", retirer: "Retirer"
+    approuver: "Valider", bloquer: "Bloquer", debloquer: "Débloquer", retirer: "Retirer",
+    cle_ok: "Clé acceptée : {} pincab(s) enregistré(s).", aucun_pincab_admin: "Aucun pincab enregistré pour l'instant.",
+    en_attente: "En attente de validation", valide: "Validé", bloque: "Bloqué"
   },
   en: {
     accueil: "Home", ma_carte: "My card", chargement: "Loading…", erreur_reseau: "Connection failed. Try again.",
@@ -176,7 +178,9 @@ var TEXTES = {
     lier_titre: "LINK MY CARD TO THIS PINCAB", lier_ok: "CARD LINKED!", lier_ok_texte: "Your card {} is linked to “{}”. Your next scores with the initials {} can be put online.",
     lier_deja: "Your card is already linked to “{}”.", retour: "Back", joueur: "PLAYER",
     donnees_qr: "Only scores scanned from a PincabOS pincab appear here.", admin: "Administration", cle_admin: "Admin key",
-    approuver: "Approve", bloquer: "Block", debloquer: "Unblock", retirer: "Remove"
+    approuver: "Approve", bloquer: "Block", debloquer: "Unblock", retirer: "Remove",
+    cle_ok: "Key accepted: {} pincab(s) registered.", aucun_pincab_admin: "No pincab registered yet.",
+    en_attente: "Waiting for approval", valide: "Approved", bloque: "Blocked"
   }
 };
 var T = TEXTES[LANGUE] || TEXTES.en;
@@ -548,15 +552,22 @@ function pageTable() {
 function pageAdmin() {
   var champ = el("input", { id: "cle", type: "password", autocomplete: "off" });
   var zone = el("div", { class: "liste" });
+  champ.addEventListener("keydown", function (ev) { if (ev.key === "Enter") charger(); });
   function charger() {
     window.CLE_ADMIN = champ.value;
     api("GET", "/api/admin/pincabs").then(function (r) {
       zone.textContent = "";
       if (!r.ok) { ajouter(zone, blocErreur(messageErreur(r))); return; }
+      // NOUVEAU : confirmation visible (avant, une clé correcte avec une liste vide n'affichait rien)
+      ajouter(zone, el("div", { class: "badge", style: "align-self:flex-start" }, ico("valide", "petite"), t("cle_ok", r.pincabs.length)));
+      if (!r.pincabs.length) ajouter(zone, el("div", { class: "vide" }, T.aucun_pincab_admin));
       r.pincabs.forEach(function (pc) {
         function maj(approuve, bloque) { api("POST", "/api/admin/pincab", { id: pc.id, approuve: approuve, bloque: bloque }).then(charger); }
         ajouter(zone, el("div", { class: "bloc", style: "padding:12px" },
-          el("b", {}, pc.nom), el("span", { class: "petit" }, pc.id + " · " + date(pc.cree) + " · " + pc.scores + " " + T.scores),
+          el("b", {}, pc.nom),
+          el("span", { class: "petit", style: "font-weight:800;color:" + (pc.bloque ? "#FF7A7A" : (pc.approuve ? "#67E8F9" : "#FFC83D")) },
+            pc.bloque ? T.bloque : (pc.approuve ? T.valide : T.en_attente)),
+          el("span", { class: "petit" }, pc.id + " · " + date(pc.cree) + " · " + pc.scores + " " + T.scores),
           el("div", { class: "deux" },
             el("button", { type: "button", class: pc.approuve ? "second" : "", onclick: function () { maj(!pc.approuve, pc.bloque); } }, pc.approuve ? T.retirer : T.approuver),
             el("button", { type: "button", class: "second", onclick: function () { maj(pc.approuve, !pc.bloque); } }, pc.bloque ? T.debloquer : T.bloquer))));
