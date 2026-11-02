@@ -188,6 +188,14 @@ const API = {
     return json({ ok: true, en_ligne: (r.results || []).map((x) => x.id) });
   },
 
+  // NOUVEAU : le pincab consulte son état (affiché dans le Setup : en attente / validé / bloqué).
+  async "GET /api/pincab/info"(req, env, url) {
+    const pc = url.searchParams.get("pc") || "";
+    const r = await env.DB.prepare("SELECT nom, approuve, bloque FROM pincabs WHERE id = ?").bind(pc).first();
+    if (!r) return erreur("pincab_inconnu", 404);
+    return json({ ok: true, nom: r.nom, approuve: !!r.approuve, bloque: !!r.bloque });
+  },
+
   // Le téléphone vient de scanner un QR de score : on le vérifie et on l'affiche (rien n'est publié).
   async "POST /api/verifier"(req, env) {
     const corps = await lireJson(req);
