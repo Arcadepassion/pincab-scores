@@ -33,9 +33,10 @@ a{color:var(--cyan)}a:hover{color:var(--cyan2)}
 justify-content:center;font-family:Anton,Impact,sans-serif;font-size:14px;text-decoration:none;padding:0 10px}
 .titre{font-family:Anton,Impact,sans-serif;letter-spacing:1px;margin:0}
 .or{color:var(--or)}.cyan{color:var(--cyan2)}.doux{color:var(--doux)}.gris{color:var(--gris)}
-.bloc{background:var(--carte);border:1px solid var(--bord);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:10px}
+.bloc{background:linear-gradient(var(--carte),var(--carte)) padding-box,linear-gradient(120deg,#FF3DA6,#FFC83D,#22D3EE,#7C5CFF) border-box;
+background-size:auto,300% 300%;border:1px solid transparent;border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:10px}
 .cadre{border-radius:18px;padding:2px;background:linear-gradient(120deg,#FF3DA6,#FFC83D,#22D3EE,#7C5CFF)}
-.cadre>.bloc{border:none;border-radius:16px;align-items:center;text-align:center}
+.cadre>.bloc{border:none;border-radius:16px;align-items:center;text-align:center;background:linear-gradient(160deg,#0B1230,#0B1230)}
 .score{font-family:Anton,Impact,sans-serif;font-size:42px;color:var(--or);letter-spacing:1px;text-shadow:0 0 14px rgba(255,138,0,.55);
 line-height:1.1;word-break:break-all}
 .badge{display:inline-flex;align-items:center;gap:6px;border-radius:20px;padding:6px 14px;font-weight:800;font-size:13px;
@@ -63,6 +64,10 @@ input:focus{outline:2px solid var(--cyan);outline-offset:1px}
 .ligne{display:flex;align-items:center;gap:10px;background:var(--carte);border:1px solid var(--bord);border-radius:12px;padding:10px 12px;
 color:var(--texte);text-decoration:none}
 .ligne.moi{background:rgba(34,211,238,.10);border-color:var(--cyan)}
+.ligne.score-rgb{border:1px solid transparent;background:linear-gradient(var(--carte),var(--carte)) padding-box,
+linear-gradient(120deg,#FF3DA6,#FFC83D,#22D3EE,#7C5CFF) border-box;background-size:auto,300% 300%}
+.ligne.score-rgb.moi{background:linear-gradient(rgba(34,211,238,.10),rgba(34,211,238,.10)) padding-box,
+linear-gradient(120deg,#FF3DA6,#FFC83D,#22D3EE,#7C5CFF) border-box;background-size:auto,300% 300%}
 .rang{width:34px;font-family:Anton,Impact,sans-serif;font-size:22px;text-align:center;flex-shrink:0}
 .milieu{flex:1;min-width:0;display:flex;flex-direction:column}
 .milieu b{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -72,9 +77,11 @@ color:var(--texte);text-decoration:none}
 .onglets button.actif{background:var(--cyan);color:var(--fond)}
 .code{font-family:ui-monospace,Consolas,monospace;font-size:22px;letter-spacing:2px;color:var(--or);background:var(--carte2);
 border-radius:12px;padding:14px;text-align:center;word-break:break-all;user-select:all}
-.carte-joueur{border-radius:20px;padding:2px;background:linear-gradient(135deg,#22D3EE,#7C5CFF 45%,#FF3DA6)}
+.carte-joueur{border-radius:20px;padding:2px;background:linear-gradient(135deg,#22D3EE,#7C5CFF 45%,#FF3DA6,#FFC83D);background-size:300% 300%}
 .carte-joueur>div{border-radius:18px;background:linear-gradient(160deg,#13204D,#0A1029 70%);padding:18px;display:flex;flex-direction:column;gap:14px}
 .ini{font-family:Anton,Impact,sans-serif;font-size:40px;color:var(--cyan2);text-shadow:0 0 16px rgba(34,211,238,.6);letter-spacing:2px;line-height:1}
+.ini.m-txt{margin-bottom:.62em}
+.ini.m-txt::after{margin-top:-.12em;transform:scaleY(-1);transform-origin:center}
 .trois{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .trois>div{background:rgba(255,255,255,.05);border-radius:12px;padding:10px 6px;text-align:center}
 .section{font-size:12px;font-weight:800;letter-spacing:1px;color:var(--gris);margin-top:4px}
@@ -99,7 +106,7 @@ pointer-events:none;text-shadow:none;opacity:.9;
 .m-img.p{margin-bottom:7px}.hero .m-img{margin-bottom:64px}
 .m-img>.m-reflet{position:absolute;left:0;top:100%;margin-top:1px;transform:scaleY(-1);pointer-events:none;filter:none;
 -webkit-mask-image:linear-gradient(to top,rgba(0,0,0,.4),rgba(0,0,0,0) 45%);mask-image:linear-gradient(to top,rgba(0,0,0,.4),rgba(0,0,0,0) 45%)}
-@media (prefers-reduced-motion:no-preference){.cadre{animation:tourne 6s linear infinite;background-size:300% 300%}
+@media (prefers-reduced-motion:no-preference){.cadre,.bloc,.carte-joueur,.ligne.score-rgb{animation:tourne 6s linear infinite}
 @keyframes tourne{0%{background-position:0 50%}50%{background-position:100% 50%}100%{background-position:0 50%}}}
 `;
 
@@ -154,6 +161,7 @@ var TEXTES = {
     deconnexion: "Déconnecter ce téléphone", deconnexion_confirme: "Déconnecter ce téléphone ? Le profil et les scores ne seront pas supprimés.",
     realisations: "SUCCÈS", aucun_succes: "Continue à jouer pour débloquer tes premiers succès.",
     voir_joueurs: "Voir les joueurs et leurs succès", meilleur_score: "Meilleur score", tables_jouees: "Tables jouées",
+    temps_cumule: "Temps de jeu cumulé sur cette table",
     succes_premier_score: "Premier score", succes_cinq_tables: "5 tables jouées", succes_dix_tables: "10 tables jouées",
     succes_premier_podium: "Premier podium", succes_premier_record: "Premier record", succes_cent_scores: "100 scores",
     temps_jeu: "Temps de jeu partagé", temps_par_table: "TEMPS DE JEU PAR TABLE", heures: "h", minutes: "min",
@@ -208,6 +216,7 @@ var TEXTES = {
     deconnexion: "Sign out on this phone", deconnexion_confirme: "Sign out on this phone? Your profile and scores will not be deleted.",
     realisations: "ACHIEVEMENTS", aucun_succes: "Keep playing to unlock your first achievements.",
     voir_joueurs: "See players and achievements", meilleur_score: "Best score", tables_jouees: "Tables played",
+    temps_cumule: "Total play time on this table",
     succes_premier_score: "First score", succes_cinq_tables: "5 tables played", succes_dix_tables: "10 tables played",
     succes_premier_podium: "First podium", succes_premier_record: "First record", succes_cent_scores: "100 scores",
     temps_jeu: "Shared play time", temps_par_table: "PLAY TIME BY TABLE", heures: "h", minutes: "min",
@@ -341,7 +350,7 @@ function blocErreur(texte) {
 }
 function ligneScore(rang, haut, bas, droite, lien, moi, nomTable) {
   var couleur = rang <= 5 ? COULEURS_PLACE[rang - 1] : "#8F9CC8";
-  return el(lien ? "a" : "div", { class: "ligne" + (moi ? " moi" : ""), href: lien || null },
+  return el(lien ? "a" : "div", { class: "ligne score-rgb" + (moi ? " moi" : ""), href: lien || null },
     el("div", { class: "rang", style: "color:" + couleur }, String(rang)),
     nomTable ? wheel(nomTable) : null,
     el("div", { class: "milieu" }, el("b", {}, haut), el("span", { class: "petit" }, bas)),
@@ -405,7 +414,7 @@ function pageAccueil() {
       (r.temps_tables || []).length ? el("div", { class: "liste" }, (r.temps_tables || []).map(function (tb) {
         return el("div", { class: "ligne" }, wheel(tb.table_nom),
           el("div", { class: "milieu" }, el("b", {}, tb.table_nom),
-            el("span", { class: "petit" }, nombre(tb.parties || 0) + " " + (LANGUE === "fr" ? "partie(s)" : "session(s)"))),
+            el("span", { class: "petit" }, T.temps_cumule)),
           el("div", { class: "droite" }, dureeTexte(tb.temps_jeu)));
       })) : el("div", { class: "vide" }, T.aucun),
       el("div", { class: "pied" }, T.donnees_qr));
@@ -623,7 +632,7 @@ function pageTable() {
           el("div", {}, el("h1", { class: "titre", style: "font-size:26px" }, r.table),
             el("div", { class: "petit" }, systeme(r.systeme), vue === "pincab" && r.pincab ? " · " + r.pincab : ""))),
         el("div", { class: "bloc", style: "flex-direction:row;align-items:center;justify-content:space-between" },
-          el("span", { class: "petit" }, T.temps_par_table),
+          el("span", { class: "petit" }, T.temps_cumule),
           mt(el("span", { class: "grand or" }, dureeTexte(r.temps_jeu)))),
         onglets, lignes.length ? el("div", { class: "liste" }, lignes) : el("div", { class: "vide" }, T.aucun),
         el("div", { class: "pied" }, T.donnees_qr));
@@ -663,7 +672,7 @@ function pageJoueur() {
         "/table?cle=" + encodeURIComponent(x.table_cle), false, x.table_nom);
     });
     afficher(entete(),
-      el("div", { class: "carte-joueur" }, el("div", {}, el("div", { class: "ini" }, r.initiales || "★"),
+      el("div", { class: "carte-joueur" }, el("div", {}, mt(el("div", { class: "ini" }, r.initiales || "★")),
         el("h1", { class: "titre" }, r.pseudo),
         el("div", { class: "trois" },
           el("div", {}, el("div", { class: "grand" }, nombre(r.stats.scores)), el("div", { class: "petit" }, T.scores)),
