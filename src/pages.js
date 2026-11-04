@@ -106,8 +106,10 @@ pointer-events:none;text-shadow:none;opacity:.9;
 .m-img.p{margin-bottom:7px}.hero .m-img{margin-bottom:64px}
 .m-img>.m-reflet{position:absolute;left:0;top:100%;margin-top:1px;transform:scaleY(-1);pointer-events:none;filter:none;
 -webkit-mask-image:linear-gradient(to top,rgba(0,0,0,.4),rgba(0,0,0,0) 45%);mask-image:linear-gradient(to top,rgba(0,0,0,.4),rgba(0,0,0,0) 45%)}
-@media (prefers-reduced-motion:no-preference){.cadre,.bloc,.carte-joueur,.ligne.score-rgb{animation:tourne 6s linear infinite}
-@keyframes tourne{0%{background-position:0 50%}50%{background-position:100% 50%}100%{background-position:0 50%}}}
+@media (prefers-reduced-motion:no-preference){.cadre,.carte-joueur{animation:tourne 6s linear infinite}
+.bloc,.ligne.score-rgb{animation:tourne-bord 6s linear infinite}.cadre>.bloc{animation:none}
+@keyframes tourne{0%{background-position:0 50%}50%{background-position:100% 50%}100%{background-position:0 50%}}
+@keyframes tourne-bord{0%{background-position:0 0,0 50%}50%{background-position:0 0,100% 50%}100%{background-position:0 0,0 50%}}}
 `;
 
 export const APP_JS = `
