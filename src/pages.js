@@ -624,7 +624,7 @@ function pageTable() {
             el("div", { class: "petit" }, systeme(r.systeme), vue === "pincab" && r.pincab ? " · " + r.pincab : ""))),
         el("div", { class: "bloc", style: "flex-direction:row;align-items:center;justify-content:space-between" },
           el("span", { class: "petit" }, T.temps_par_table),
-          mt(el("span", { class: "grand or" }, dureeTexte(r.temps_jeu))),
+          mt(el("span", { class: "grand or" }, dureeTexte(r.temps_jeu)))),
         onglets, lignes.length ? el("div", { class: "liste" }, lignes) : el("div", { class: "vide" }, T.aucun),
         el("div", { class: "pied" }, T.donnees_qr));
     });
