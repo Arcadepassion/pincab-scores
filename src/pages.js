@@ -64,10 +64,9 @@ input:focus{outline:2px solid var(--cyan);outline-offset:1px}
 .ligne{display:flex;align-items:center;gap:10px;background:var(--carte);border:1px solid var(--bord);border-radius:12px;padding:10px 12px;
 color:var(--texte);text-decoration:none}
 .ligne.moi{background:rgba(34,211,238,.10);border-color:var(--cyan)}
-.ligne.score-rgb{border:1px solid transparent;background:linear-gradient(var(--carte),var(--carte)) padding-box,
-linear-gradient(120deg,#FF3DA6,#FFC83D,#22D3EE,#7C5CFF) border-box;background-size:auto,300% 300%}
-.ligne.score-rgb.moi{background:linear-gradient(rgba(34,211,238,.10),rgba(34,211,238,.10)) padding-box,
-linear-gradient(120deg,#FF3DA6,#FFC83D,#22D3EE,#7C5CFF) border-box;background-size:auto,300% 300%}
+.ligne.score-rgb{border:0;padding:2px;background:linear-gradient(120deg,#FF3DA6,#FFC83D,#22D3EE,#7C5CFF);background-size:300% 300%}
+.score-contenu{width:100%;min-width:0;display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;background:var(--carte)}
+.ligne.score-rgb.moi .score-contenu{background:rgba(34,211,238,.10)}
 .rang{width:34px;font-family:Anton,Impact,sans-serif;font-size:22px;text-align:center;flex-shrink:0}
 .milieu{flex:1;min-width:0;display:flex;flex-direction:column}
 .milieu b{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -106,8 +105,8 @@ pointer-events:none;text-shadow:none;opacity:.9;
 .m-img.p{margin-bottom:7px}.hero .m-img{margin-bottom:64px}
 .m-img>.m-reflet{position:absolute;left:0;top:100%;margin-top:1px;transform:scaleY(-1);pointer-events:none;filter:none;
 -webkit-mask-image:linear-gradient(to top,rgba(0,0,0,.4),rgba(0,0,0,0) 45%);mask-image:linear-gradient(to top,rgba(0,0,0,.4),rgba(0,0,0,0) 45%)}
-@media (prefers-reduced-motion:no-preference){.cadre,.carte-joueur{animation:tourne 6s linear infinite}
-.bloc,.ligne.score-rgb{animation:tourne-bord 6s linear infinite}.cadre>.bloc{animation:none}
+@media (prefers-reduced-motion:no-preference){.cadre,.carte-joueur,.ligne.score-rgb{animation:tourne 6s linear infinite}
+.bloc{animation:tourne-bord 6s linear infinite}.cadre>.bloc{animation:none}
 @keyframes tourne{0%{background-position:0 50%}50%{background-position:100% 50%}100%{background-position:0 50%}}
 @keyframes tourne-bord{0%{background-position:0 0,0 50%}50%{background-position:0 0,100% 50%}100%{background-position:0 0,0 50%}}}
 `;
@@ -353,10 +352,11 @@ function blocErreur(texte) {
 function ligneScore(rang, haut, bas, droite, lien, moi, nomTable) {
   var couleur = rang <= 5 ? COULEURS_PLACE[rang - 1] : "#8F9CC8";
   return el(lien ? "a" : "div", { class: "ligne score-rgb" + (moi ? " moi" : ""), href: lien || null },
+    el("div", { class: "score-contenu" },
     el("div", { class: "rang", style: "color:" + couleur }, String(rang)),
     nomTable ? wheel(nomTable) : null,
     el("div", { class: "milieu" }, el("b", {}, haut), el("span", { class: "petit" }, bas)),
-    el("div", { class: "droite" }, miroirDroite(droite)));
+    el("div", { class: "droite" }, miroirDroite(droite))));
 }
 function miroirDroite(droite) {
   // NOUVEAU : le score de la ligne a son reflet (le badge éventuel reste tel quel)
