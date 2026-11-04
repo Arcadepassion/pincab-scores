@@ -45,7 +45,7 @@ background:rgba(34,211,238,.12);color:var(--cyan2)}
 .deux{display:flex;gap:10px;width:100%}
 .deux>div{flex:1;background:var(--carte2);border-radius:12px;padding:10px;text-align:center}
 .petit{font-size:12px;color:var(--doux)}
-.grand{font-family:Anton,Impact,sans-serif;font-size:26px}
+.grand{font-family:Anton,Impact,sans-serif;font-size:26px}.grand.m-txt{line-height:1}
 button,.bouton{display:block;width:100%;border:none;border-radius:14px;padding:15px;font:800 16px Inter,system-ui,sans-serif;
 background:var(--cyan);color:var(--fond);text-align:center;text-decoration:none;cursor:pointer;min-height:48px}
 .bouton:hover,.bouton:visited{color:var(--fond)}
@@ -92,7 +92,7 @@ border-radius:12px;padding:14px;text-align:center;word-break:break-all;user-sele
 .systeme{display:inline-flex;align-items:center;gap:5px}
 .m-txt{position:relative;margin-bottom:.34em}
 span.m-txt{display:inline-block}
-.m-txt::after{content:attr(data-m);position:absolute;left:0;right:0;top:100%;margin-top:-.24em;transform:scaleY(-1);
+.m-txt::after{content:attr(data-m);position:absolute;left:0;right:0;top:100%;margin-top:-.4em;transform:scaleY(-.55) translateY(-100%);transform-origin:top;
 pointer-events:none;text-shadow:none;opacity:.9;
 -webkit-mask-image:linear-gradient(to top,rgba(0,0,0,.42),rgba(0,0,0,0) 78%);mask-image:linear-gradient(to top,rgba(0,0,0,.42),rgba(0,0,0,0) 78%)}
 .m-img{position:relative;display:inline-block;line-height:0;margin-bottom:13px;vertical-align:middle}
@@ -525,9 +525,9 @@ function pageCarte() {
           el("div", {}, mt(el("div", { class: "section", style: "margin:0 0 .62em" }, "PINCABOS")), mt(el("div", { style: "font-weight:800;font-size:20px" }, r.pseudo))),
           mt(el("div", { class: "ini" }, r.initiales))),
         el("div", { class: "trois" },
-          el("div", {}, mi(ico("trophee", "moyenne")), mt(el("div", { class: "grand", style: "color:#FFE27A" }, String(r.stats.records))), mt(el("div", { class: "petit" }, T.records))),
-          el("div", {}, mi(ico("podium", "moyenne")), mt(el("div", { class: "grand", style: "color:#FFC83D" }, String(r.stats.podiums))), mt(el("div", { class: "petit" }, T.podiums))),
-          el("div", {}, mi(ico("meilleur-score", "moyenne")), mt(el("div", { class: "grand", style: "color:#FFB347" }, String(r.stats.scores))), mt(el("div", { class: "petit" }, T.scores)))),
+          el("div", {}, mi(ico("trophee", "moyenne")), mt(el("div", { class: "grand", style: "color:#FFE27A" }, String(r.stats.records))), el("div", { class: "petit" }, T.records)),
+          el("div", {}, mi(ico("podium", "moyenne")), mt(el("div", { class: "grand", style: "color:#FFC83D" }, String(r.stats.podiums))), el("div", { class: "petit" }, T.podiums)),
+          el("div", {}, mi(ico("meilleur-score", "moyenne")), mt(el("div", { class: "grand", style: "color:#FFB347" }, String(r.stats.scores))), el("div", { class: "petit" }, T.scores))),
         el("div", { class: "petit avec-ico", style: "justify-content:flex-start;gap:6px" }, mi(ico("table", "petite")), mt(el("span", {}, r.pincabs.length ? T.liee_a + " : " + r.pincabs.map(function (x) { return x.nom; }).join(", ") : T.aucun_pincab))))),
       formPseudo, zoneLiens,
       el("div", { class: "bloc" }, el("b", {}, T.realisations),
