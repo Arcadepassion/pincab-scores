@@ -4,13 +4,12 @@ Serveur du tableau des scores en ligne de PincabOS (Cloudflare Workers + base D1
 
 ## Principe
 - Chaque pincab s'**active** une fois (`POST /api/pincab/activer`) et reçoit un identifiant + une **clé secrète**.
-- Chaque score affiché en QR code est **signé** par le pincab (HMAC-SHA256, 16 octets) : un QR fait à la main est refusé.
-- Un QR = un score = **un seul** enregistrement (identifiant unique `u`). Les scans suivants affichent « déjà en ligne ».
-- Le joueur crée sa **carte joueur** sur son téléphone (pseudo + initiales, code de secours, pas d'e-mail),
-  puis la **lie** une fois au pincab en scannant le QR « Lier une carte » (valable 10 min).
-- Sur un pincab, deux cartes ne peuvent pas avoir les mêmes initiales : un score signé « DAN » ne peut être
-  récupéré que par la carte DAN liée à ce pincab, **après confirmation** sur le téléphone.
-- « Tous les pincabs » ne montre que les pincabs **validés** par l'administrateur (page `/admin`).
+- Le pincab signe ses envois de scores et de sessions en HMAC-SHA256. Le frontend transmet automatiquement les scores correspondant aux initiales d'un profil créé dans Setup, avec mise en attente hors ligne.
+- Les anciens scores restent dans D1. Une mise à niveau du schéma ajoute uniquement la table des sessions (`CREATE TABLE IF NOT EXISTS`) et ne réinitialise pas les données.
+- Le téléphone n'est pas nécessaire pour publier chaque score. Le QR public du frontend ouvre le site en consultation libre; le profil joueur et les succès individuels sont affichés publiquement.
+- Un QR privé du Setup connecte le profil du joueur sur son téléphone. Le joueur peut modifier son pseudo, délier un pincab ou supprimer son compte. La suppression libère le pseudo et anonymise les anciens scores sans les effacer.
+- Le nom du pincab est modifiable sans toucher aux scores. Le temps de jeu affiché est total par pincab; les succès sont individuels et basés sur les scores.
+- L'onglet En ligne du frontend s'affiche uniquement quand le partage est activé et le site accessible.
 
 ## Format des QR (créés par PincabOS)
 `https://<adresse>/s?p=<données>&g=<signature>` et `https://<adresse>/lier?p=<données>&g=<signature>`
@@ -22,7 +21,7 @@ Serveur du tableau des scores en ligne de PincabOS (Cloudflare Workers + base D1
 ## Déploiement (une seule fois)
 1. Compte Cloudflare gratuit.
 2. Base : `npx wrangler d1 create pincab-scores` → recopier `database_id` dans `wrangler.toml`.
-3. Tables : `npx wrangler d1 execute pincab-scores --remote --file=schema.sql`
+3. Pour une base existante, appliquer la mise à niveau non destructive : `npx wrangler d1 execute pincab-scores --remote --file=schema.sql`. Les tables existantes et scores sont conservés; seule la table des sessions est ajoutée si elle manque.
 4. Clé d'administration : `npx wrangler secret put ADMIN_CLE` (12 caractères minimum).
 5. `npx wrangler deploy` → adresse `https://pincab-scores.pincab.workers.dev`
 

@@ -26,6 +26,7 @@ html,body{margin:0;background:var(--fond);color:var(--texte);font-family:Inter,s
 main{max-width:520px;margin:0 auto;padding:20px 16px 40px;display:flex;flex-direction:column;gap:14px;min-height:100vh}
 a{color:var(--cyan)}a:hover{color:var(--cyan2)}
 .entete{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.retour{width:44px;min-width:44px;height:44px;min-height:44px;padding:0;border:1px solid var(--bord2);border-radius:50%;background:var(--carte2);color:var(--texte);font-size:25px;line-height:1}
 .logo{font-family:Anton,Impact,sans-serif;font-size:22px;letter-spacing:1px;color:#fff;text-decoration:none}
 .logo span{color:var(--cyan)}
 .pastille{min-width:44px;height:44px;border-radius:22px;background:var(--cyan);color:var(--fond);display:flex;align-items:center;
@@ -145,6 +146,17 @@ var TEXTES = {
     oublier_confirm: "Retirer la carte de ce téléphone ? Garde bien ton code de secours pour la retrouver.",
     lier_titre: "LIER MA CARTE À CE PINCAB", lier_ok: "CARTE LIÉE !", lier_ok_texte: "Ta carte {} est liée à « {} ». Tes prochains scores avec les initiales {} pourront être mis en ligne.",
     lier_deja: "Ta carte est déjà liée à « {} ».", retour: "Retour", joueur: "JOUEUR",
+    retour_page: "Retour à la page précédente", pseudo_modifier: "Modifier le pseudo", pseudo_enregistre: "Pseudo enregistré.",
+    delier: "Délier", delier_confirme: "Délier ce pincab ? Les anciens scores restent dans les classements.",
+    compte_supprimer: "Supprimer mon compte", compte_supprimer_confirme: "Supprimer ce compte ? Le pseudo sera libéré et les scores resteront anonymisés dans les classements. Cette action est définitive.",
+    compte_supprime: "Compte supprimé. Les scores conservés dans les classements sont anonymisés.",
+    setup_profil_aide: "Crée ton profil dans le Setup du pincab, puis scanne le QR de connexion affiché dans ses réglages.",
+    deconnexion: "Déconnecter ce téléphone", deconnexion_confirme: "Déconnecter ce téléphone ? Le profil et les scores ne seront pas supprimés.",
+    realisations: "SUCCÈS", aucun_succes: "Continue à jouer pour débloquer tes premiers succès.",
+    voir_joueurs: "Voir les joueurs et leurs succès", meilleur_score: "Meilleur score", tables_jouees: "Tables jouées",
+    succes_premier_score: "Premier score", succes_cinq_tables: "5 tables jouées", succes_dix_tables: "10 tables jouées",
+    succes_premier_podium: "Premier podium", succes_premier_record: "Premier record", succes_cent_scores: "100 scores",
+    temps_jeu: "Temps de jeu partagé", heures: "h", minutes: "min",
     donnees_qr: "Seuls les scores scannés depuis un pincab PincabOS apparaissent ici.", admin: "Administration", cle_admin: "Clé d'administration",
     approuver: "Valider", bloquer: "Bloquer", debloquer: "Débloquer", retirer: "Retirer",
     cle_ok: "Clé acceptée : {} pincab(s) enregistré(s).", aucun_pincab_admin: "Aucun pincab enregistré pour l'instant.",
@@ -188,6 +200,18 @@ var TEXTES = {
     oublier_confirm: "Remove the card from this phone? Keep your recovery code to get it back.",
     lier_titre: "LINK MY CARD TO THIS PINCAB", lier_ok: "CARD LINKED!", lier_ok_texte: "Your card {} is linked to “{}”. Your next scores with the initials {} can be put online.",
     lier_deja: "Your card is already linked to “{}”.", retour: "Back", joueur: "PLAYER",
+    retour_page: "Back to the previous page", pseudo_modifier: "Change nickname", pseudo_enregistre: "Nickname saved.",
+    delier: "Unlink", delier_confirme: "Unlink this pincab? Existing scores stay in the leaderboards.",
+    compte_supprimer: "Delete my account", compte_supprimer_confirme: "Delete this account? The nickname will be released and scores will remain anonymized in the leaderboards. This cannot be undone.",
+    compte_supprime: "Account deleted. Scores retained in leaderboards are anonymized.",
+    setup_profil_aide: "Create your profile in the pincab Setup, then scan the sign-in QR shown in its settings.",
+    deconnexion: "Sign out on this phone", deconnexion_confirme: "Sign out on this phone? Your profile and scores will not be deleted.",
+    realisations: "ACHIEVEMENTS", aucun_succes: "Keep playing to unlock your first achievements.",
+    voir_joueurs: "See players and achievements", meilleur_score: "Best score", tables_jouees: "Tables played",
+    succes_premier_score: "First score", succes_cinq_tables: "5 tables played", succes_dix_tables: "10 tables played",
+    succes_premier_podium: "First podium", succes_premier_record: "First record", succes_cent_scores: "100 scores",
+    temps_jeu: "Shared play time", heures: "h", minutes: "min",
+    compte_supprime: "Account deleted. Scores retained in leaderboards are anonymized.",
     donnees_qr: "Only scores scanned from a PincabOS pincab appear here.", admin: "Administration", cle_admin: "Admin key",
     approuver: "Approve", bloquer: "Block", debloquer: "Unblock", retirer: "Remove",
     cle_ok: "Key accepted: {} pincab(s) registered.", aucun_pincab_admin: "No pincab registered yet.",
@@ -202,6 +226,11 @@ function t(cle) {
   return v;
 }
 function nombre(n) { try { return new Intl.NumberFormat(LANGUE).format(n); } catch (e) { return String(n); } }
+function dureeTexte(secondes) {
+  secondes = Math.max(0, Number(secondes) || 0);
+  var h = Math.floor(secondes / 3600), m = Math.floor((secondes % 3600) / 60);
+  return h ? h + " " + T.heures + " " + m + " " + T.minutes : m + " " + T.minutes;
+}
 function date(iso) {
   try { return new Date(iso).toLocaleString(LANGUE, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }); }
   catch (e) { return iso; }
@@ -293,6 +322,12 @@ function messageErreur(r) {
 function entete() {
   var code = codeCarte();
   return el("div", { class: "entete" },
+    location.pathname !== "/" ? el("button", { class: "retour", type: "button", "aria-label": T.retour_page,
+      onclick: function () {
+        var precedent = "";
+        try { precedent = document.referrer ? new URL(document.referrer).origin : ""; } catch (e) {}
+        if (precedent === location.origin) history.back(); else location.href = "/";
+      } }, "←") : null,
     el("a", { class: "logo", href: "/", "aria-label": "PincabOS Scores" },
       el("img", { src: "/images/logo.png", alt: "PincabOS" }), " SCORES"),
     el("a", { class: "pastille avec-ico", href: "/carte", "aria-label": T.ma_carte, style: "gap:6px;padding:0 12px 0 8px" },
@@ -358,8 +393,12 @@ function pageAccueil() {
     afficher(entete(),
       el("div", { class: "hero" }, mi(el("img", { src: "/images/scores.png", alt: "" }))),
       el("div", { class: "champ" }, el("label", { for: "recherche" }, T.recherche), champ), resultats,
-      el("div", { class: "trois" }, stat("table", r.stats.pincabs, T.pincabs), stat("joueurs", r.stats.joueurs, T.joueurs),
-        stat("meilleur-score", r.stats.scores, T.scores)),
+      el("div", { class: "trois", style: "grid-template-columns:repeat(2,minmax(0,1fr))" },
+        stat("table", r.stats.pincabs, T.pincabs), stat("joueurs", r.stats.joueurs, T.joueurs),
+        stat("meilleur-score", r.stats.scores, T.scores),
+        el("div", { class: "bloc", style: "padding:12px;align-items:center;gap:4px" }, ico("chrono", "moyenne"),
+          el("div", { class: "grand or" }, dureeTexte(r.stats.temps_jeu)), el("div", { class: "petit" }, T.temps_jeu))),
+      el("a", { class: "bouton second", href: "/joueurs" }, T.voir_joueurs),
       el("div", { class: "section" }, T.derniers),
       derniers.length ? el("div", { class: "liste" }, derniers) : el("div", { class: "vide" }, T.aucun),
       el("div", { class: "pied" }, T.donnees_qr));
@@ -388,62 +427,9 @@ function pageScan() {
     if (!r.ok) { afficher(entete(), blocErreur(messageErreur(r)), el("a", { class: "bouton second", href: "/" }, T.accueil)); return; }
     var s = r.score;
     var lienTable = "/table?cle=" + encodeURIComponent(s.table_cle) + "&pc=" + encodeURIComponent(s.pincab_id);
-    if (r.carte) garderInitiales(r.carte.initiales);
-    if (r.deja) {
-      afficher(entete(),
-        el("div", { class: "bloc", style: "align-items:center;text-align:center" },
-          ico("info", "moyenne"),
-          el("h1", { class: "titre or", style: "font-size:28px" }, T.deja_titre),
-          el("div", { class: "doux" }, T.deja_texte),
-          el("div", { class: "liste", style: "width:100%;text-align:left" },
-            ligneInfo(T.table, s.table), ligneInfo(T.score, nombre(s.score)),
-            ligneInfo(T.ajoute_par, r.deja.initiales + " · " + r.deja.pseudo), ligneInfo(T.le, date(r.deja.le))),
-          el("div", { class: "petit" }, T.pas_toi)),
-        el("div", { class: "actions" }, boutonIco("podium", T.voir_classement, { class: "bouton", href: lienTable })));
-      return;
-    }
-    var retour = location.pathname + location.search;
-    if (!s.initiales) { afficher(entete(), carteScore(s), blocErreur(T.sans_initiales)); return; }
-    if (!r.carte) {
-      afficher(entete(), carteScore(s, el("span", { class: "badge" }, T.ton_score)), blocRangs(r.rangs),
-        el("div", { class: "bloc" }, T.besoin_carte),
-        el("div", { class: "actions" },
-          boutonIco("carte", T.creer_carte, { class: "bouton", href: "/carte?retour=" + encodeURIComponent(retour) }),
-          boutonIco("valide", T.restaurer, { class: "bouton second", href: "/carte?restaurer=1&retour=" + encodeURIComponent(retour) })));
-      return;
-    }
-    if (!r.carte.liee) {
-      afficher(entete(), carteScore(s, el("span", { class: "badge" }, T.ton_score)),
-        el("div", { class: "bloc" }, el("b", { class: "or" }, T.non_liee_titre), el("div", { class: "doux" }, T.non_liee_texte)));
-      return;
-    }
-    if (r.carte.initiales !== s.initiales) {
-      afficher(entete(), carteScore(s, el("span", { class: "badge" }, T.ton_score)),
-        blocErreur(t("initiales_diff", s.initiales, r.carte.initiales, s.initiales)));
-      return;
-    }
-    var bouton = boutonIco("envoyer", T.confirmer);
-    bouton.addEventListener("click", function () {
-      bouton.disabled = true;
-      api("POST", "/api/score", { p: p, g: g }).then(function (x) {
-        if (!x.ok && x.erreur !== "deja_en_ligne") { bouton.disabled = false; ajouter(APP, blocErreur(messageErreur(x))); return; }
-        if (!x.ok) { pageScan(); return; }
-        var record = x.rangs.tous === 1;
-        afficher(entete(),
-          el("div", { class: "cadre" }, el("div", { class: "bloc" },
-            el("span", { class: "badge" }, ico("valide", "petite"), T.score_ajoute),
-            record ? el("h1", { class: "titre or", style: "font-size:32px;text-shadow:0 0 18px rgba(255,61,166,.55)" }, T.nouveau_record) : null,
-            wheel(s.table, "grande"),
-            el("div", { style: "font-weight:800;font-size:18px" }, s.table),
-            el("div", { class: "petit" }, systeme(s.systeme), " · " + s.pincab),
-            mt(el("div", { class: "score" }, nombre(s.score))),
-            blocRangs(x.rangs),
-            x.ancien_record && x.ancien_record < s.score ? el("div", { class: "petit" }, el("span", { style: "text-decoration:line-through;color:#FF7A7A" }, nombre(x.ancien_record))) : null)),
-          el("div", { class: "actions" }, boutonIco("podium", T.voir_classement, { class: "bouton", href: lienTable })));
-      });
-    });
-    afficher(entete(), carteScore(s, el("span", { class: "badge" }, T.ton_score)), blocRangs(r.rangs),
-      el("div", { class: "actions" }, el("div", { class: "petit", style: "text-align:center" }, t("confirmer_aide", r.carte.initiales)), bouton));
+    afficher(entete(), carteScore(s), blocRangs(r.rangs),
+      el("div", { class: "actions" }, boutonIco("podium", T.voir_classement, { class: "bouton", href: lienTable }),
+        boutonIco("scores", T.accueil, { class: "bouton second", href: "/" })));
   });
 }
 function ligneInfo(gauche, droite) {
@@ -454,16 +440,75 @@ function ligneInfo(gauche, droite) {
 function pageCarte() {
   var retour = params.get("retour");
   if (retour && retour.charAt(0) !== "/") retour = null;   // jamais vers un autre site
-  if (!codeCarte()) { params.get("restaurer") ? formulaireRestaurer(retour) : formulaireCreation(retour); return; }
+  var jeton = params.get("jeton");
+  if (!jeton && location.hash.indexOf("#jeton=") === 0) {
+    try { jeton = decodeURIComponent(location.hash.slice(7)); } catch (e) { jeton = ""; }
+  }
+  if (jeton) {
+    garderCode(jeton);
+    params.delete("jeton");
+    var rechercheNettoyee = params.toString();
+    history.replaceState(null, "", location.pathname + (rechercheNettoyee ? "?" + rechercheNettoyee : ""));
+  }
+  if (!codeCarte()) {
+    afficher(entete(), el("div", { class: "bloc", style: "align-items:center;text-align:center" },
+      ico("carte", "moyenne"), el("h1", { class: "titre", style: "font-size:22px" }, T.ma_carte),
+      el("div", { class: "doux" }, T.setup_profil_aide)),
+      el("a", { class: "bouton second", href: "/" }, T.accueil));
+    return;
+  }
   chargement();
   api("GET", "/api/carte").then(function (r) {
     if (!r.ok) { if (r.erreur === "carte_requise") { oublierCode(); pageCarte(); return; } afficher(entete(), blocErreur(messageErreur(r))); return; }
     garderInitiales(r.initiales);
     if (retour) { location.href = retour; return; }
-    var zoneCode = el("div", {});
     var liste = (r.scores || []).map(function (s) {
       return ligneScore(s.place, s.table_nom, s.pincab + " · " + date(s.ajoute), nombre(s.score),
         "/table?cle=" + encodeURIComponent(s.table_cle), false, s.table_nom);
+    });
+    var pseudoModifie = el("input", { value: r.pseudo, maxlength: "24", autocomplete: "nickname", "aria-label": T.pseudo_modifier });
+    var retourPseudo = el("div", { class: "petit" });
+    var formPseudo = el("div", { class: "bloc" },
+      el("div", { class: "champ" }, el("label", {}, T.pseudo_modifier), pseudoModifie), retourPseudo,
+      el("button", { type: "button", class: "second", onclick: function () {
+        api("POST", "/api/carte/pseudo", { pseudo: pseudoModifie.value }).then(function (x) {
+          if (!x.ok) { retourPseudo.textContent = messageErreur(x); return; }
+          retourPseudo.textContent = T.pseudo_enregistre;
+          setTimeout(function () { location.reload(); }, 500);
+        });
+      } }, T.pseudo_modifier));
+    var zoneLiens = el("div", { class: "bloc" }, el("b", {}, T.liee_a));
+    if (!r.pincabs.length) ajouter(zoneLiens, el("div", { class: "petit" }, T.aucun_pincab));
+    (r.pincabs || []).forEach(function (pc) {
+      ajouter(zoneLiens, el("div", { class: "ligne" }, el("div", { class: "milieu" }, el("b", {}, pc.nom),
+        el("span", { class: "petit" }, pc.initiales || "")),
+        el("button", { type: "button", class: "second", style: "width:auto;padding:9px 12px",
+          onclick: function () {
+            if (!confirm(T.delier_confirme)) return;
+            api("POST", "/api/lien/delier", { pincab_id: pc.id }).then(function (x) {
+              if (x.ok) location.reload(); else alert(messageErreur(x));
+            });
+          } }, T.delier)));
+    });
+    var actionCompte = el("button", { type: "button", class: "second", onclick: function () {
+      if (!confirm(T.compte_supprimer_confirme)) return;
+      api("POST", "/api/carte/supprimer", {}).then(function (x) {
+        if (!x.ok) { alert(messageErreur(x)); return; }
+        oublierCode();
+        alert(T.compte_supprime);
+        location.href = "/";
+      });
+    } }, T.compte_supprimer);
+    var nomsRealisations = {
+      premier_score: LANGUE === "fr" ? "Premier score" : "First score",
+      cinq_tables: LANGUE === "fr" ? "Explorateur · 5 tables" : "Explorer · 5 tables",
+      dix_tables: LANGUE === "fr" ? "Collectionneur · 10 tables" : "Collector · 10 tables",
+      premier_podium: LANGUE === "fr" ? "Premier podium" : "First podium",
+      premier_record: LANGUE === "fr" ? "Premier record" : "First record",
+      cent_scores: LANGUE === "fr" ? "Cent scores" : "One hundred scores"
+    };
+    var realisations = (r.realisations || []).map(function (x) {
+      return el("span", { class: "badge", style: "margin:3px" }, ico("trophee", "petite"), nomsRealisations[x.cle] || x.cle);
     });
     afficher(entete(),
       el("h1", { class: "titre", style: "font-size:22px" }, T.carte_titre),
@@ -477,13 +522,15 @@ function pageCarte() {
           el("div", {}, mi(ico("podium", "moyenne")), mt(el("div", { class: "grand", style: "color:#FFC83D" }, String(r.stats.podiums))), mt(el("div", { class: "petit" }, T.podiums))),
           el("div", {}, mi(ico("meilleur-score", "moyenne")), mt(el("div", { class: "grand", style: "color:#FFB347" }, String(r.stats.scores))), mt(el("div", { class: "petit" }, T.scores)))),
         el("div", { class: "petit avec-ico", style: "justify-content:flex-start;gap:6px" }, mi(ico("table", "petite")), mt(el("span", {}, r.pincabs.length ? T.liee_a + " : " + r.pincabs.map(function (x) { return x.nom; }).join(", ") : T.aucun_pincab))))),
+      formPseudo, zoneLiens,
+      el("div", { class: "bloc" }, el("b", {}, T.realisations),
+        realisations.length ? el("div", {}, realisations) : el("div", { class: "petit" }, T.aucun_succes)),
       el("div", { class: "section" }, T.mes_scores),
       liste.length ? el("div", { class: "liste" }, liste) : el("div", { class: "vide" }, T.aucun),
-      el("div", { class: "actions" }, zoneCode,
+      el("div", { class: "actions" }, actionCompte,
         el("button", { type: "button", class: "second", onclick: function () {
-          zoneCode.textContent = ""; ajouter(zoneCode, el("div", { class: "code" }, formaterCode(codeCarte()))); } }, T.voir_code),
-        el("button", { type: "button", class: "second", onclick: function () {
-          if (confirm(T.oublier_confirm)) { oublierCode(); location.href = "/"; } } }, T.oublier)));
+          if (confirm(T.deconnexion_confirme)) { oublierCode(); location.href = "/"; }
+        } }, T.deconnexion)));
   });
 }
 function formaterCode(c) { return (c || "").replace(/[^A-Z0-9]/gi, "").toUpperCase().replace(/(.{4})(?=.)/g, "$1-"); }
@@ -575,6 +622,50 @@ function pageTable() {
   charger();
 }
 
+function texteSucces(realisations) {
+  return (realisations || []).map(function (r) { return t("succes_" + r.cle); }).filter(function (x) { return x.indexOf("succes_") !== 0; });
+}
+function pageJoueurs() {
+  chargement();
+  api("GET", "/api/joueurs").then(function (r) {
+    if (!r.ok) { afficher(entete(), blocErreur(messageErreur(r))); return; }
+    var lignes = (r.joueurs || []).map(function (j, i) {
+      var succes = texteSucces(j.realisations);
+      return el("a", { class: "ligne", href: "/joueur?id=" + encodeURIComponent(j.carte_id) },
+        el("div", { class: "rang" }, String(i + 1)),
+        el("div", { class: "milieu" }, el("b", {}, j.pseudo + (j.initiales ? " · " + j.initiales : "")),
+          el("span", { class: "petit" }, nombre(j.nb_records || 0) + " " + T.records + " · " + nombre(j.nb_tables || 0) + " " + T.tables_jouees),
+          el("span", { class: "petit" }, succes.join(" · ") || T.aucun_succes)),
+        el("div", { class: "droite" }, nombre(j.meilleur || 0)));
+    });
+    afficher(entete(), el("h1", { class: "titre" }, T.joueurs),
+      lignes.length ? el("div", { class: "liste" }, lignes) : el("div", { class: "vide" }, T.aucun));
+  });
+}
+function pageJoueur() {
+  var id = params.get("id") || "";
+  chargement();
+  api("GET", "/api/joueur?id=" + encodeURIComponent(id)).then(function (r) {
+    if (!r.ok) { afficher(entete(), blocErreur(messageErreur(r))); return; }
+    var succes = texteSucces(r.realisations);
+    var scores = (r.tables || []).map(function (x, i) {
+      return ligneScore(x.rang, x.table_nom, (x.pincab || "") + (x.ajoute ? " · " + date(x.ajoute) : ""), nombre(x.score),
+        "/table?cle=" + encodeURIComponent(x.table_cle), false, x.table_nom);
+    });
+    afficher(entete(),
+      el("div", { class: "carte-joueur" }, el("div", {}, el("div", { class: "ini" }, r.initiales || "★"),
+        el("h1", { class: "titre" }, r.pseudo),
+        el("div", { class: "trois" },
+          el("div", {}, el("div", { class: "grand" }, nombre(r.stats.scores)), el("div", { class: "petit" }, T.scores)),
+          el("div", {}, el("div", { class: "grand" }, nombre(r.stats.tables)), el("div", { class: "petit" }, T.tables_jouees)),
+          el("div", {}, el("div", { class: "grand" }, nombre(r.stats.records)), el("div", { class: "petit" }, T.records))))),
+      el("div", { class: "bloc" }, el("b", {}, T.realisations),
+        succes.length ? el("div", { class: "liste" }, succes.map(function (s) { return el("span", { class: "badge" }, "🏆 " + s); })) : el("span", { class: "petit" }, T.aucun_succes)),
+      el("div", { class: "section" }, T.mes_scores),
+      scores.length ? el("div", { class: "liste" }, scores) : el("div", { class: "vide" }, T.aucun));
+  });
+}
+
 function pageAdmin() {
   var champ = el("input", { id: "cle", type: "password", autocomplete: "off", autocapitalize: "off",
                             autocorrect: "off", spellcheck: "false" });
@@ -606,7 +697,7 @@ function pageAdmin() {
     el("button", { type: "button", onclick: charger }, T.valider), zone);
 }
 
-var ROUTES = { "/": pageAccueil, "/s": pageScan, "/carte": pageCarte, "/lier": pageLier, "/table": pageTable, "/admin": pageAdmin };
+var ROUTES = { "/": pageAccueil, "/s": pageScan, "/carte": pageCarte, "/lier": pageLier, "/table": pageTable, "/joueurs": pageJoueurs, "/joueur": pageJoueur, "/admin": pageAdmin };
 (ROUTES[location.pathname] || pageAccueil)();
 })();
 `;

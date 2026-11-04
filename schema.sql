@@ -40,3 +40,13 @@ CREATE INDEX IF NOT EXISTS idx_scores_table ON scores (table_cle, score DESC);
 CREATE INDEX IF NOT EXISTS idx_scores_carte ON scores (carte_id, ajoute DESC);
 CREATE INDEX IF NOT EXISTS idx_scores_ajoute ON scores (ajoute DESC);
 CREATE INDEX IF NOT EXISTS idx_pincabs_ip ON pincabs (ip, cree);
+
+-- Durée de jeu agrégée par pincab. Les identifiants rendent l'envoi idempotent après une coupure réseau.
+CREATE TABLE IF NOT EXISTS sessions_pincab (
+  id TEXT PRIMARY KEY,
+  pincab_id TEXT NOT NULL,
+  duree INTEGER NOT NULL,
+  table_nom TEXT NOT NULL DEFAULT '',
+  fin TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_pincab ON sessions_pincab (pincab_id, fin DESC);
