@@ -622,9 +622,9 @@ function pageTable() {
         el("div", { style: "display:flex;align-items:center;gap:14px" }, wheel(r.table, "moyenne"),
           el("div", {}, el("h1", { class: "titre", style: "font-size:26px" }, r.table),
             el("div", { class: "petit" }, systeme(r.systeme), vue === "pincab" && r.pincab ? " · " + r.pincab : ""))),
-        r.temps_jeu ? el("div", { class: "bloc", style: "flex-direction:row;align-items:center;justify-content:space-between" },
+        el("div", { class: "bloc", style: "flex-direction:row;align-items:center;justify-content:space-between" },
           el("span", { class: "petit" }, T.temps_par_table),
-          mt(el("span", { class: "grand or" }, dureeTexte(r.temps_jeu)))) : null,
+          mt(el("span", { class: "grand or" }, dureeTexte(r.temps_jeu))),
         onglets, lignes.length ? el("div", { class: "liste" }, lignes) : el("div", { class: "vide" }, T.aucun),
         el("div", { class: "pied" }, T.donnees_qr));
     });
