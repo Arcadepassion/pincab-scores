@@ -572,9 +572,16 @@ const API = {
       .bind(...(vue === "pincab" ? [cle, pc] : [cle])).all();
     const nom = await env.DB.prepare("SELECT table_nom, systeme FROM scores WHERE table_cle = ? ORDER BY ajoute DESC LIMIT 1")
       .bind(cle).first();
+    const nomTable = nom?.table_nom || cle;
+    const temps = await env.DB.prepare(
+      `SELECT COALESCE(SUM(s.duree), 0) AS temps_jeu FROM sessions_pincab s
+         JOIN pincabs p ON p.id = s.pincab_id
+        WHERE p.bloque = 0 AND lower(trim(s.table_nom)) = lower(trim(?))
+          AND ${vue === "pincab" ? "s.pincab_id = ?" : "1 = 1"}`)
+      .bind(...(vue === "pincab" ? [nomTable, pc] : [nomTable])).first();
     const pincab = pc ? await env.DB.prepare("SELECT nom FROM pincabs WHERE id = ?").bind(pc).first() : null;
-    return json({ ok: true, cle, table: nom?.table_nom || cle, systeme: nom?.systeme || "", vue,
-                  pincab: pincab?.nom || "", lignes: r.results || [] });
+    return json({ ok: true, cle, table: nomTable, systeme: nom?.systeme || "", vue,
+                  pincab: pincab?.nom || "", temps_jeu: Number(temps?.temps_jeu) || 0, lignes: r.results || [] });
   },
 
   async "GET /api/accueil"(req, env) {
@@ -584,13 +591,18 @@ const API = {
               (SELECT COUNT(*) FROM scores) AS scores,
               (SELECT COALESCE(SUM(s.duree), 0) FROM sessions_pincab s JOIN pincabs p ON p.id = s.pincab_id
                 WHERE p.bloque = 0) AS temps_jeu`).first();
+    const tempsTables = await env.DB.prepare(
+      `SELECT s.table_nom, COALESCE(SUM(s.duree), 0) AS temps_jeu, COUNT(*) AS parties
+         FROM sessions_pincab s JOIN pincabs p ON p.id = s.pincab_id
+        WHERE p.bloque = 0 AND trim(s.table_nom) <> ''
+        GROUP BY lower(trim(s.table_nom)) ORDER BY temps_jeu DESC, s.table_nom COLLATE NOCASE LIMIT 100`).all();
     const r = await env.DB.prepare(
       `SELECT s.table_cle, s.table_nom, s.systeme, s.score, s.initiales, s.ajoute, p.nom AS pincab
          FROM scores s JOIN pincabs p ON p.id = s.pincab_id
         WHERE p.bloque = 0 ORDER BY s.ajoute DESC LIMIT 20`).all();
     const derniers = [];
     for (const s of r.results || []) derniers.push({ ...s, place: (await rangs(env, s.table_cle, "", s.score)).tous });
-    return json({ ok: true, stats, derniers });
+    return json({ ok: true, stats, temps_tables: tempsTables.results || [], derniers });
   },
 
   async "GET /api/recherche"(req, env, url) {

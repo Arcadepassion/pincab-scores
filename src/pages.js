@@ -90,9 +90,9 @@ border-radius:12px;padding:14px;text-align:center;word-break:break-all;user-sele
 .logo img{height:30px;width:auto;vertical-align:middle}
 .hero{display:flex;justify-content:center}.hero img{height:150px;width:auto}
 .systeme{display:inline-flex;align-items:center;gap:5px}
-.m-txt{position:relative;margin-bottom:.62em}
+.m-txt{position:relative;margin-bottom:.34em}
 span.m-txt{display:inline-block}
-.m-txt::after{content:attr(data-m);position:absolute;left:0;right:0;top:100%;margin-top:-.12em;transform:scaleY(-1);
+.m-txt::after{content:attr(data-m);position:absolute;left:0;right:0;top:100%;margin-top:-.24em;transform:scaleY(-1);
 pointer-events:none;text-shadow:none;opacity:.9;
 -webkit-mask-image:linear-gradient(to top,rgba(0,0,0,.42),rgba(0,0,0,0) 78%);mask-image:linear-gradient(to top,rgba(0,0,0,.42),rgba(0,0,0,0) 78%)}
 .m-img{position:relative;display:inline-block;line-height:0;margin-bottom:13px;vertical-align:middle}
@@ -156,7 +156,7 @@ var TEXTES = {
     voir_joueurs: "Voir les joueurs et leurs succès", meilleur_score: "Meilleur score", tables_jouees: "Tables jouées",
     succes_premier_score: "Premier score", succes_cinq_tables: "5 tables jouées", succes_dix_tables: "10 tables jouées",
     succes_premier_podium: "Premier podium", succes_premier_record: "Premier record", succes_cent_scores: "100 scores",
-    temps_jeu: "Temps de jeu partagé", heures: "h", minutes: "min",
+    temps_jeu: "Temps de jeu partagé", temps_par_table: "TEMPS DE JEU PAR TABLE", heures: "h", minutes: "min",
     donnees_qr: "Seuls les scores scannés depuis un pincab PincabOS apparaissent ici.", admin: "Administration", cle_admin: "Clé d'administration",
     approuver: "Valider", bloquer: "Bloquer", debloquer: "Débloquer", retirer: "Retirer",
     cle_ok: "Clé acceptée : {} pincab(s) enregistré(s).", aucun_pincab_admin: "Aucun pincab enregistré pour l'instant.",
@@ -210,7 +210,7 @@ var TEXTES = {
     voir_joueurs: "See players and achievements", meilleur_score: "Best score", tables_jouees: "Tables played",
     succes_premier_score: "First score", succes_cinq_tables: "5 tables played", succes_dix_tables: "10 tables played",
     succes_premier_podium: "First podium", succes_premier_record: "First record", succes_cent_scores: "100 scores",
-    temps_jeu: "Shared play time", heures: "h", minutes: "min",
+    temps_jeu: "Shared play time", temps_par_table: "PLAY TIME BY TABLE", heures: "h", minutes: "min",
     compte_supprime: "Account deleted. Scores retained in leaderboards are anonymized.",
     donnees_qr: "Only scores scanned from a PincabOS pincab appear here.", admin: "Administration", cle_admin: "Admin key",
     approuver: "Approve", bloquer: "Block", debloquer: "Unblock", retirer: "Remove",
@@ -401,6 +401,13 @@ function pageAccueil() {
       el("a", { class: "bouton second", href: "/joueurs" }, T.voir_joueurs),
       el("div", { class: "section" }, T.derniers),
       derniers.length ? el("div", { class: "liste" }, derniers) : el("div", { class: "vide" }, T.aucun),
+      el("div", { class: "section" }, T.temps_par_table),
+      (r.temps_tables || []).length ? el("div", { class: "liste" }, (r.temps_tables || []).map(function (tb) {
+        return el("div", { class: "ligne" }, wheel(tb.table_nom),
+          el("div", { class: "milieu" }, el("b", {}, tb.table_nom),
+            el("span", { class: "petit" }, nombre(tb.parties || 0) + " " + (LANGUE === "fr" ? "partie(s)" : "session(s)"))),
+          el("div", { class: "droite" }, dureeTexte(tb.temps_jeu)));
+      })) : el("div", { class: "vide" }, T.aucun),
       el("div", { class: "pied" }, T.donnees_qr));
   });
 }
@@ -615,6 +622,9 @@ function pageTable() {
         el("div", { style: "display:flex;align-items:center;gap:14px" }, wheel(r.table, "moyenne"),
           el("div", {}, el("h1", { class: "titre", style: "font-size:26px" }, r.table),
             el("div", { class: "petit" }, systeme(r.systeme), vue === "pincab" && r.pincab ? " · " + r.pincab : ""))),
+        r.temps_jeu ? el("div", { class: "bloc", style: "flex-direction:row;align-items:center;justify-content:space-between" },
+          el("span", { class: "petit" }, T.temps_par_table),
+          mt(el("span", { class: "grand or" }, dureeTexte(r.temps_jeu)))) : null,
         onglets, lignes.length ? el("div", { class: "liste" }, lignes) : el("div", { class: "vide" }, T.aucun),
         el("div", { class: "pied" }, T.donnees_qr));
     });
