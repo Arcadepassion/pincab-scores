@@ -192,7 +192,7 @@ async function envoyerPushScores(env, payload) {
     payload, { publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY,
       subject: "mailto:arcadepassion42@gmail.com" }, { concurrency: 20, ttl: 3600 });
   if (result.gone.length) {
-    const reqs = result.gone.map((gone) => env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?").bind(gone.endpoint));
+    const reqs = result.gone.map((endpoint) => env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?").bind(endpoint));
     for (let i = 0; i < reqs.length; i += 100) await env.DB.batch(reqs.slice(i, i + 100));
   }
   if (result.failed.length) console.warn(JSON.stringify({ event: "push_scores_partial_failure", n: result.failed.length }));
