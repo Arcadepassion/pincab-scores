@@ -1889,12 +1889,26 @@ function boutonIco(nom, texte, attrs) {
 }
 // NOUVEAU : sons du site, synthétisés dans le navigateur (aucun fichier à télécharger) : entrée (lien ouvert),
 // retour (bouton ←) et badge débloqué. Le bouton 🔊 de l'en-tête les coupe ; le choix est gardé.
-var SON = { ctx: null, actif: lireReglage("pincabos_son") !== "0" };
+var SON = { ctx: null, actif: lireReglage("pincabos_son") !== "0", tampons: {}, charge: false };
+// NOUVEAU : les mêmes sons que le Tableau des scores de PincabOS (dossier sounds du pincab) :
+// Option_Validation.mp3 = entrée, Option_Retour.mp3 = retour, Option_Navigation.mp3 = menus
+var FICHIERS_SONS = { entree: "/sons/validation.mp3", retour: "/sons/retour.mp3", navigation: "/sons/navigation.mp3" };
+function chargerSons(ctx) {
+  if (SON.charge || !window.fetch) return;
+  SON.charge = true;
+  Object.keys(FICHIERS_SONS).forEach(function (cle) {
+    fetch(FICHIERS_SONS[cle]).then(function (r) { return r.arrayBuffer(); })
+      .then(function (b) { return new Promise(function (ok, ko) { ctx.decodeAudioData(b, ok, ko); }); })
+      .then(function (tampon) { SON.tampons[cle] = tampon; })
+      .catch(function () {});
+  });
+}
 function contexteAudio() {
   if (!SON.ctx) {
     var A = window.AudioContext || window.webkitAudioContext;
     if (!A) return null;
     try { SON.ctx = new A(); } catch (e) { return null; }
+    chargerSons(SON.ctx);
   }
   if (SON.ctx.state === "suspended") { try { SON.ctx.resume(); } catch (e) {} }
   return SON.ctx;
@@ -1916,7 +1930,15 @@ function jouerSon(type) {
   var ctx = contexteAudio();
   if (!ctx) return false;
   var t0 = ctx.currentTime + 0.01;
-  if (type === "entree") {
+  if (SON.tampons[type]) {          // NOUVEAU : son du pincab (sinon, son de secours synthétisé ci-dessous)
+    var source = ctx.createBufferSource(), volume = ctx.createGain();
+    source.buffer = SON.tampons[type];
+    volume.gain.value = 0.8;
+    source.connect(volume); volume.connect(ctx.destination);
+    source.start(t0);
+    return ctx.state === "running";
+  }
+  if (type === "entree" || type === "navigation") {
     note(ctx, 520, t0, 0.07, "square", 0.04, 780);
     note(ctx, 1040, t0 + 0.06, 0.1, "triangle", 0.07);
   } else if (type === "retour") {
@@ -1947,22 +1969,52 @@ function boutonSon() {
     SON.actif = !SON.actif;
     garderReglage("pincabos_son", SON.actif ? "1" : "0");
     maj();
-    jouerSon("entree");
+    jouerSon("navigation");
   });
   maj();
   return b;
 }
-// Son d'entrée sur chaque lien du site : la page suivante s'ouvre 0,14 s plus tard pour qu'il s'entende.
+// les sons sont préparés dès l'ouverture du site ; le premier toucher les débloque (règle des navigateurs)
+contexteAudio();
+["pointerdown", "touchstart", "keydown"].forEach(function (nom) {
+  document.addEventListener(nom, function () { contexteAudio(); }, { passive: true });
+});
+// CORRECTIF : les pages du site s'ouvrent sans recharger le site : les sons (jusqu'à 2 s) ne sont plus coupés.
+// Lien du site = son d'entrée ; bouton ← ou retour du téléphone = son de retour ; boutons = son d'entrée.
 document.addEventListener("click", function (ev) {
-  if (ev.defaultPrevented || ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || !SON.actif) return;
-  var a = ev.target && ev.target.closest ? ev.target.closest("a[href]") : null;
-  if (!a || a.target === "_blank" || a.hasAttribute("download")) return;
-  var u;
-  try { u = new URL(a.getAttribute("href"), location.href); } catch (e) { return; }
-  if (u.origin !== location.origin) return;
-  ev.preventDefault();
-  jouerSon("entree");
-  setTimeout(function () { location.href = u.href; }, 140);
+  if (ev.defaultPrevented || ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
+  var cible = ev.target && ev.target.closest ? ev.target : null;
+  if (!cible) return;
+  var a = cible.closest("a[href]");
+  if (a) {
+    if (a.target === "_blank" || a.hasAttribute("download")) return;
+    var u;
+    try { u = new URL(a.getAttribute("href"), location.href); } catch (e) { return; }
+    if (u.origin !== location.origin || !ROUTES[u.pathname]) return;
+    ev.preventDefault();
+    jouerSon("entree");
+    naviguer(u.pathname + u.search + u.hash);
+    return;
+  }
+  var b = cible.closest("button");
+  if (b && !b.closest(".retour, .son-bouton, .langue, .celeb")) jouerSon("entree");
+});
+var PROFONDEUR = (history.state && history.state.pincabos) || 0;
+function naviguer(adresse) {
+  PROFONDEUR++;
+  history.pushState({ pincabos: PROFONDEUR }, "", adresse);
+  router();
+}
+function retourPage() {
+  if (PROFONDEUR > 0) { history.back(); return; }   // le son est joué par « popstate »
+  jouerSon("retour");
+  history.replaceState({ pincabos: 0 }, "", "/");
+  router();
+}
+window.addEventListener("popstate", function (ev) {
+  PROFONDEUR = (ev.state && ev.state.pincabos) || 0;
+  jouerSon("retour");
+  router();
 });
 
 // NOUVEAU : animation (et son) quand un joueur débloque un badge, soi-même ou un autre joueur.
@@ -2061,12 +2113,7 @@ function entete() {
   var code = codeCarte();
   return el("div", { class: "entete" },
     location.pathname !== "/" ? el("button", { class: "retour", type: "button", "aria-label": T.retour_page,
-      onclick: function () {
-        var precedent = "";
-        try { precedent = document.referrer ? new URL(document.referrer).origin : ""; } catch (e) {}
-        jouerSon("retour");   // NOUVEAU : son de retour (la page change juste après, pour qu'il s'entende)
-        setTimeout(function () { if (precedent === location.origin) history.back(); else location.href = "/"; }, SON.actif ? 150 : 0);
-      } }, "←") : null,
+      onclick: retourPage }, "←") : null,   // CORRECTIF : retour sans rechargement, avec son de retour
     el("a", { class: "logo", href: "/", "aria-label": "PincabOS Scores" },
       el("img", { src: "/images/logo.png", alt: "PincabOS" }), el("span", { class: "logo-texte" }, " SCORES")),
     el("div", { class: "entete-droite" }, boutonSon(), choixLangue(),
@@ -2087,6 +2134,7 @@ function choixLangue() {
     ev.stopPropagation();
     menu.hidden = !menu.hidden;
     bouton.setAttribute("aria-expanded", menu.hidden ? "false" : "true");
+    if (!menu.hidden) jouerSon("navigation");   // NOUVEAU
   });
   document.addEventListener("click", fermer);
   document.addEventListener("keydown", function (ev) { if (ev.key === "Escape") fermer(); });
@@ -2668,6 +2716,12 @@ function pageAdmin() {
 }
 
 var ROUTES = { "/": pageAccueil, "/s": pageScan, "/carte": pageCarte, "/lier": pageLier, "/table": pageTable, "/joueurs": pageJoueurs, "/joueur": pageJoueur, "/admin": pageAdmin };
-(ROUTES[location.pathname] || pageAccueil)();
+// NOUVEAU : affiche la page de l'adresse actuelle (au chargement et à chaque changement de page sans rechargement)
+function router() {
+  params = new URLSearchParams(location.search);
+  (ROUTES[location.pathname] || pageAccueil)();
+}
+if (!history.state) { try { history.replaceState({ pincabos: 0 }, "", location.href); } catch (e) {} }
+router();
 })();
 `;
