@@ -38,3 +38,16 @@ python tests/scenario.py          # 28 vérifications (signatures, triche, doubl
 - Logo de chaque table : pris dans la médiathèque GitHub `Arcadepassion/pincab_os-media-library` (`wheel/<nom de la table>.png`),
   réduit à la volée par wsrv.nl (service gratuit). Table absente de la médiathèque : logo générique. Ajouter la wheel
   dans la médiathèque suffit pour qu'elle apparaisse sur le site.
+
+## Vérification automatique des scores
+- Chaque score reçu passe des contrôles de vraisemblance (`raisonSuspect` dans `src/index.js`, seuils dans `VERIF`) :
+  durée de partie (20 s à 6 h), nombre de scores par heure / par jour et par pincab, date dans le futur,
+  score plus de 10 fois supérieur au meilleur score des autres pincabs sur la même table, points par seconde
+  plus de 5 fois supérieurs aux autres pincabs, pincab avec déjà 3 scores en attente.
+- Un score anormal n'entre pas dans les classements et ne déclenche aucune alerte : il est gardé dans la table
+  `scores_suspects` (créée automatiquement) et l'administrateur l'accepte ou le refuse sur la page `/admin`.
+- Le pincab affiche l'état du score (« EN VÉRIFICATION », puis « ✓ EN LIGNE » ou « REFUSÉ »).
+
+## Langues du site
+- 10 langues (les mêmes que PincabOS), français par défaut ; le choix (menu avec drapeaux dans l'en-tête) est gardé
+  sur le téléphone (`localStorage`). Drapeaux : `public/images/drapeaux/*.svg`.

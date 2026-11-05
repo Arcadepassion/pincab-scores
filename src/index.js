@@ -230,6 +230,74 @@ function realisationsPour(scores, tables, records, podiums) {
   return r;
 }
 
+// ------------------------------------------------------------------ NOUVEAU : vérification automatique des scores
+// Le pincab signe ses scores, mais la clé est sur la machine de l'utilisateur : un tricheur pourrait signer
+// n'importe quoi. Chaque score reçu passe donc des contrôles de vraisemblance ; un score anormal n'entre pas
+// dans les classements : il est mis en quarantaine (table scores_suspects) et l'administrateur l'accepte ou
+// le refuse depuis la page /admin. Aucun score n'est perdu.
+const VERIF = {
+  scoresParHeure: 20,        // scores de parties récentes (avec durée) par pincab et par heure
+  anciensParJour: 300,       // anciens scores ajoutés (sans durée de partie) par pincab et par jour
+  dureeMin: 20,              // s : partie plus courte = score suspect
+  dureeMax: 6 * 3600,        // s : partie plus longue = score suspect
+  facteurRecord: 10,         // score > 10 × le meilleur score des AUTRES pincabs (si assez de références)
+  facteurVitesse: 5,         // points par seconde > 5 × le plus rapide des autres pincabs
+  referencesMin: 3,          // nombre de scores d'autres pincabs nécessaires pour comparer
+  suspectsSurveillance: 3,   // pincab avec 3 scores en attente : ses nouveaux scores passent tous en vérification
+};
+let tableSuspectsPrete = false;
+async function assurerTableSuspects(env) {
+  if (tableSuspectsPrete) return;
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS scores_suspects (
+       id TEXT PRIMARY KEY, pincab_id TEXT NOT NULL, carte_id TEXT NOT NULL, table_cle TEXT NOT NULL,
+       table_nom TEXT NOT NULL, systeme TEXT NOT NULL, score INTEGER NOT NULL, initiales TEXT NOT NULL,
+       date_partie TEXT NOT NULL, duree_partie INTEGER NOT NULL DEFAULT 0, raison TEXT NOT NULL, recu TEXT NOT NULL)`).run();
+  tableSuspectsPrete = true;
+}
+
+// Renvoie "" si le score est vraisemblable, sinon la raison de la quarantaine.
+async function raisonSuspect(env, d) {
+  await assurerTableSuspects(env);
+  const score = Number(d.sc), duree = Number(d.du) || 0;
+  const enAttente = await env.DB.prepare("SELECT COUNT(*) AS n FROM scores_suspects WHERE pincab_id = ?").bind(d.pc).first();
+  if ((enAttente?.n || 0) >= VERIF.suspectsSurveillance) return "pincab_surveille";
+  if (d.d) {
+    const t = Date.parse(String(d.d));
+    if (Number.isFinite(t) && t > Date.now() + 86400000) return "date_future";
+  }
+  if (duree > 0) {
+    if (duree < VERIF.dureeMin) return "partie_trop_courte";
+    if (duree > VERIF.dureeMax) return "partie_trop_longue";
+    const heure = new Date(Date.now() - 3600000).toISOString();
+    const n = await env.DB.prepare(
+      `SELECT (SELECT COUNT(*) FROM scores WHERE pincab_id = ?1 AND ajoute > ?2 AND duree_partie > 0)
+            + (SELECT COUNT(*) FROM scores_suspects WHERE pincab_id = ?1 AND recu > ?2 AND duree_partie > 0) AS n`)
+      .bind(d.pc, heure).first();
+    if ((n?.n || 0) >= VERIF.scoresParHeure) return "trop_de_scores";
+  } else {
+    const jour = new Date(Date.now() - 86400000).toISOString();
+    const n = await env.DB.prepare(
+      `SELECT (SELECT COUNT(*) FROM scores WHERE pincab_id = ?1 AND ajoute > ?2 AND duree_partie = 0)
+            + (SELECT COUNT(*) FROM scores_suspects WHERE pincab_id = ?1 AND recu > ?2 AND duree_partie = 0) AS n`)
+      .bind(d.pc, jour).first();
+    if ((n?.n || 0) >= VERIF.anciensParJour) return "trop_de_scores";
+  }
+  // Comparaison avec les scores des AUTRES pincabs sur la même table
+  const ref = await env.DB.prepare(
+    `SELECT COUNT(*) AS n, COUNT(DISTINCT s.pincab_id) AS pcs, MAX(s.score) AS m,
+            MAX(CASE WHEN s.duree_partie > 0 THEN CAST(s.score AS REAL) / s.duree_partie END) AS vitesse,
+            SUM(CASE WHEN s.duree_partie > 0 THEN 1 ELSE 0 END) AS avec_duree
+       FROM scores s JOIN pincabs p ON p.id = s.pincab_id
+      WHERE s.table_cle = ? AND s.pincab_id <> ? AND p.bloque = 0`).bind(d.t, d.pc).first();
+  if ((ref?.n || 0) >= VERIF.referencesMin && (ref?.pcs || 0) >= 2 && ref.m > 0 && score > VERIF.facteurRecord * ref.m)
+    return "score_anormal";
+  if (duree > 0 && (ref?.avec_duree || 0) >= VERIF.referencesMin && ref.vitesse > 0
+      && score / duree > VERIF.facteurVitesse * ref.vitesse)
+    return "score_trop_rapide";
+  return "";
+}
+
 // ------------------------------------------------------------------ API
 const API = {
   // Flux des records/podiums récents, lu périodiquement par les frontends connectés.
@@ -369,7 +437,12 @@ const API = {
     const marques = ids.map(() => "?").join(",");
     const r = await env.DB.prepare(`SELECT id FROM scores WHERE pincab_id = ? AND id IN (${marques})`)
       .bind(corps.pc, ...ids).all();
-    return json({ ok: true, en_ligne: (r.results || []).map((x) => x.id) });
+    // NOUVEAU : scores encore en vérification (quarantaine), pour l'affichage dans le Tableau des scores
+    await assurerTableSuspects(env);
+    const v = await env.DB.prepare(`SELECT id FROM scores_suspects WHERE pincab_id = ? AND id IN (${marques})`)
+      .bind(corps.pc, ...ids).all();
+    return json({ ok: true, en_ligne: (r.results || []).map((x) => x.id),
+                  en_verification: (v.results || []).map((x) => x.id) });
   },
 
   // Le partage n'attend plus une validation manuelle : tout pincab non bloqué est actif en ligne.
@@ -466,6 +539,17 @@ const API = {
     }
     const deja = await env.DB.prepare("SELECT 1 FROM scores WHERE id = ?").bind(d.u).first();
     if (deja) return erreur("deja_en_ligne", 409);
+    // NOUVEAU : vérification automatique ; un score anormal attend la décision de l'administrateur
+    const raison = await raisonSuspect(env, d);
+    if (raison) {
+      await env.DB.prepare(
+        `INSERT OR IGNORE INTO scores_suspects (id, pincab_id, carte_id, table_cle, table_nom, systeme, score, initiales,
+           date_partie, duree_partie, raison, recu) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .bind(d.u, d.pc, carte.id, d.t, String(d.n || d.t).slice(0, 80), String(d.sy || "").slice(0, 12),
+              Number(d.sc), initiales, String(d.d || "").slice(0, 25), Number(d.du) || 0, raison, maintenant()).run();
+      console.warn(JSON.stringify({ event: "score_suspect", pc: d.pc, table: d.t, score: Number(d.sc), raison }));
+      return json({ ok: true, en_verification: true, raison });
+    }
     const meilleurJoueurAvant = await env.DB.prepare(
       "SELECT MAX(score) AS m FROM scores WHERE table_cle = ? AND carte_id = ?").bind(d.t, carte.id).first();
     const nouveauRecordJoueur = Number(d.sc) > Number(meilleurJoueurAvant?.m || 0);
@@ -795,6 +879,37 @@ const API = {
       `SELECT p.id, p.nom, p.cree, p.approuve, p.bloque, (SELECT COUNT(*) FROM scores s WHERE s.pincab_id = p.id) AS scores
          FROM pincabs p ORDER BY p.cree DESC LIMIT 500`).all();
     return json({ ok: true, pincabs: r.results || [] });
+  },
+
+  // NOUVEAU : scores mis en quarantaine par la vérification automatique
+  async "GET /api/admin/suspects"(req, env) {
+    if (!adminOk(req, env)) return erreur("acces_refuse", 403);
+    await assurerTableSuspects(env);
+    const r = await env.DB.prepare(
+      `SELECT s.*, p.nom AS pincab, c.pseudo,
+              (SELECT MAX(x.score) FROM scores x WHERE x.table_cle = s.table_cle) AS record
+         FROM scores_suspects s JOIN pincabs p ON p.id = s.pincab_id LEFT JOIN cartes c ON c.id = s.carte_id
+        ORDER BY s.recu DESC LIMIT 300`).all();
+    return json({ ok: true, suspects: r.results || [] });
+  },
+
+  async "POST /api/admin/suspect"(req, env) {
+    if (!adminOk(req, env)) return erreur("acces_refuse", 403);
+    await assurerTableSuspects(env);
+    const corps = await lireJson(req);
+    const id = String(corps.id || "");
+    const s = await env.DB.prepare("SELECT * FROM scores_suspects WHERE id = ?").bind(id).first();
+    if (!s) return erreur("introuvable", 404);
+    const ops = [env.DB.prepare("DELETE FROM scores_suspects WHERE id = ?").bind(id)];
+    if (corps.accepter) {
+      ops.unshift(env.DB.prepare(
+        `INSERT OR IGNORE INTO scores (id, pincab_id, carte_id, table_cle, table_nom, systeme, score, initiales, date_partie, ajoute, duree_partie)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .bind(s.id, s.pincab_id, s.carte_id, s.table_cle, s.table_nom, s.systeme, s.score, s.initiales,
+              s.date_partie, maintenant(), s.duree_partie));
+    }
+    await env.DB.batch(ops);
+    return json({ ok: true });
   },
 
   async "POST /api/admin/pincab"(req, env) {
