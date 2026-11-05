@@ -11,6 +11,7 @@ export const PAGE_HTML = `<!doctype html>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>PincabOS Scores</title>
 <link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" href="/images/icone-192.png"><link rel="apple-touch-icon" href="/images/icone-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;600;800&display=swap">
 <link rel="stylesheet" href="/app.css">

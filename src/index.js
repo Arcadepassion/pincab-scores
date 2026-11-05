@@ -23,7 +23,10 @@ const VERSION_PAGES = empreinte(APP_JS + APP_CSS);
 const PAGE_HTML = PAGE_BRUTE.replace('src="/app.js"', `src="/app.js?v=${VERSION_PAGES}"`)
   .replace('href="/app.css"', `href="/app.css?v=${VERSION_PAGES}"`);
 const MANIFEST = JSON.stringify({ id: "/", name: "PincabOS Scores", short_name: "PincabOS",
-  start_url: "/", scope: "/", display: "standalone", background_color: "#070B1A", theme_color: "#070B1A" });
+  start_url: "/", scope: "/", display: "standalone", background_color: "#070B1A", theme_color: "#070B1A",
+  // NOUVEAU : icône PincabOS quand le site est ajouté à l'écran d'accueil
+  icons: [{ src: "/images/icone-192.png", sizes: "192x192", type: "image/png" },
+          { src: "/images/icone-512.png", sizes: "512x512", type: "image/png" }] });
 const SERVICE_WORKER_JS = `
 "use strict";
 self.addEventListener("push", (event) => {
@@ -32,7 +35,9 @@ self.addEventListener("push", (event) => {
   event.waitUntil(self.registration.showNotification(data.title || "PincabOS Scores", {
     body: data.body || "Un nouveau score est entré dans le Top 3.",
     tag: data.tag || "pincab-high-score", data: { url: data.url || "/" },
-    icon: "/images/carte.png", badge: "/images/carte.png"
+    // CORRECTIF : « badge » = petite icône de la barre d'état (Android n'en garde que la silhouette :
+    // une image pleine donnait un carré blanc) ; « icon » = logo PincabOS en couleur
+    icon: "/images/icone-192.png", badge: "/images/notif-badge.png"
   }));
 });
 self.addEventListener("notificationclick", (event) => {
