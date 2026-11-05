@@ -417,7 +417,8 @@ async function podium(env) {
            MAX(rg.sc) AS meilleur,
            SUM(CASE WHEN rg.devant = 0 THEN 1 ELSE 0 END) AS records,
            SUM(CASE WHEN rg.devant < 3 THEN 1 ELSE 0 END) AS podiums,
-           COUNT(*) AS tables
+           COUNT(*) AS tables,
+           (SELECT COUNT(*) FROM scores s WHERE s.carte_id = c.id) AS nb_scores
       FROM rg JOIN cartes c ON c.id = rg.carte_id
      WHERE c.pseudo <> 'Joueur supprimé'
      GROUP BY c.id
@@ -429,7 +430,10 @@ async function podium(env) {
       "SELECT table_nom, table_cle FROM scores WHERE carte_id = ? AND score = ? ORDER BY ajoute DESC LIMIT 1")
       .bind(x.carte_id, score).first();
     liste.push({ ...x, table_nom: t?.table_nom || "", table_cle: t?.table_cle || "",
-                 recompenses: await recompensesDe(env, x.carte_id) });
+                 recompenses: await recompensesDe(env, x.carte_id),
+                 // NOUVEAU : badges débloqués (premier score, 5 / 10 tables, premier podium, premier record, 100 scores)
+                 realisations: realisationsPour(Number(x.nb_scores) || 0, Number(x.tables) || 0,
+                                                Number(x.records) || 0, Number(x.podiums) || 0) });
   }
   return liste;
 }
