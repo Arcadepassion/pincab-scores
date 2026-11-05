@@ -474,6 +474,39 @@ async function podium(env) {
   return liste;
 }
 
+// NOUVEAU : effacement complet de profils : scores, scores en vérification, alertes, liens, notifications,
+// badges, succès et le profil lui-même. Rien ne reste sur le site (même pas un score « Anonyme »).
+async function effacerCartes(env, ids) {
+  if (!ids.length) return;
+  await assurerTableSuspects(env);
+  await assurerTableBadges(env);
+  await assurerTableRecompenses(env);
+  const ops = [];
+  for (const id of ids) {
+    for (const table of ["scores", "scores_suspects", "score_notifications", "liens", "push_subscriptions",
+                         "badges_obtenus", "recompenses"]) {
+      ops.push(env.DB.prepare(`DELETE FROM ${table} WHERE carte_id = ?`).bind(id));
+    }
+    ops.push(env.DB.prepare("DELETE FROM cartes WHERE id = ?").bind(id));
+  }
+  await env.DB.batch(ops);
+  console.log(JSON.stringify({ event: "profils_effaces", n: ids.length }));
+}
+// NOUVEAU : les comptes supprimés avant cette version (« Joueur supprimé », scores anonymes) sont effacés
+// une fois pour toutes
+let anciensSupprimesNettoyes = false;
+async function nettoyerAnciensComptesSupprimes(env) {
+  if (anciensSupprimesNettoyes) return;
+  anciensSupprimesNettoyes = true;
+  try {
+    const r = await env.DB.prepare("SELECT id FROM cartes WHERE pseudo = 'Joueur supprimé' LIMIT 50").all();
+    await effacerCartes(env, (r.results || []).map((x) => x.id));
+  } catch (e) {
+    anciensSupprimesNettoyes = false;
+    console.warn(JSON.stringify({ event: "nettoyage_error", message: String(e?.message || e) }));
+  }
+}
+
 // ------------------------------------------------------------------ API
 const API = {
   // NOUVEAU : podium des 3 meilleurs joueurs et champions du jour / de la semaine / du mois / de l'année
@@ -942,17 +975,11 @@ const API = {
 
   // Le propriétaire peut libérer son pseudo et ses initiales depuis son téléphone, sans code de secours.
   // Les scores restent dans le classement, mais sont anonymisés et ne sont plus rattachés à un compte.
+  // CORRECTIF : supprimer son compte depuis le téléphone efface TOUT (avant : scores gardés en « Anonyme »)
   async "POST /api/carte/supprimer"(req, env) {
     const carte = await carteDe(env, req);
     if (!carte) return erreur("carte_requise", 401);
-    const jetonInvalide = b64urlEncode(aleatoire(24));
-    await env.DB.batch([
-      env.DB.prepare("UPDATE scores SET initiales = '' WHERE carte_id = ?").bind(carte.id),
-      env.DB.prepare("DELETE FROM liens WHERE carte_id = ?").bind(carte.id),
-      env.DB.prepare("DELETE FROM push_subscriptions WHERE carte_id = ?").bind(carte.id),
-      env.DB.prepare("UPDATE cartes SET pseudo = 'Joueur supprimé', initiales = '', jeton_hash = ?, ip = NULL WHERE id = ?")
-        .bind(await sha256(jetonInvalide), carte.id),
-    ]);
+    await effacerCartes(env, [carte.id]);
     return json({ ok: true });
   },
 
@@ -962,20 +989,7 @@ const API = {
   async "POST /api/carte/effacer"(req, env) {
     const carte = await carteDe(env, req);
     if (!carte) return erreur("carte_requise", 401);
-    await assurerTableSuspects(env);
-    await assurerTableBadges(env);
-    await assurerTableRecompenses(env);
-    await env.DB.batch([
-      env.DB.prepare("DELETE FROM scores WHERE carte_id = ?").bind(carte.id),
-      env.DB.prepare("DELETE FROM scores_suspects WHERE carte_id = ?").bind(carte.id),
-      env.DB.prepare("DELETE FROM score_notifications WHERE carte_id = ?").bind(carte.id),
-      env.DB.prepare("DELETE FROM liens WHERE carte_id = ?").bind(carte.id),
-      env.DB.prepare("DELETE FROM push_subscriptions WHERE carte_id = ?").bind(carte.id),
-      env.DB.prepare("DELETE FROM badges_obtenus WHERE carte_id = ?").bind(carte.id),
-      env.DB.prepare("DELETE FROM recompenses WHERE carte_id = ?").bind(carte.id),
-      env.DB.prepare("DELETE FROM cartes WHERE id = ?").bind(carte.id),
-    ]);
-    console.log(JSON.stringify({ event: "profil_efface", carte: carte.id }));
+    await effacerCartes(env, [carte.id]);
     return json({ ok: true });
   },
 
@@ -1065,6 +1079,7 @@ const API = {
   },
 
   async "GET /api/accueil"(req, env) {
+    await nettoyerAnciensComptesSupprimes(env);   // NOUVEAU
     const stats = await env.DB.prepare(
       `SELECT (SELECT COUNT(*) FROM pincabs WHERE bloque = 0) AS pincabs,
               (SELECT COUNT(*) FROM cartes WHERE pseudo <> 'Joueur supprimé') AS joueurs,
