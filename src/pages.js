@@ -84,7 +84,8 @@ color:var(--texte);text-decoration:none}
 .ligne.moi{background:rgba(34,211,238,.10);border-color:var(--cyan)}
 .ligne.score-rgb{border:1px solid transparent;background:linear-gradient(var(--carte),var(--carte)) padding-box,
 linear-gradient(120deg,#FF3DA6,#FFC83D,#22D3EE,#7C5CFF) border-box;background-size:auto,300% 300%}
-.ligne.score-rgb.moi{background:linear-gradient(rgba(34,211,238,.10),rgba(34,211,238,.10)) padding-box,
+/* CORRECTIF : intérieur opaque (avant, la couleur translucide laissait voir le dégradé RGB animé dessous) */
+.ligne.score-rgb.moi{border-width:2px;background:linear-gradient(#0D2543,#0D2543) padding-box,
 linear-gradient(120deg,#FF3DA6,#FFC83D,#22D3EE,#7C5CFF) border-box;background-size:auto,300% 300%}
 .rang{width:34px;font-family:Anton,Impact,sans-serif;font-size:22px;text-align:center;flex-shrink:0}
 .milieu{flex:1;min-width:0;display:flex;flex-direction:column}
