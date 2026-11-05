@@ -230,6 +230,42 @@ function realisationsPour(scores, tables, records, podiums) {
   return r;
 }
 
+// NOUVEAU : badges obtenus, datés (le site joue une animation quand un joueur en débloque un).
+// On ne note que les badges qui APPARAISSENT après un nouveau score (avant / après), donc les badges
+// déjà gagnés avant cette version ne sont jamais annoncés comme nouveaux.
+let tableBadgesPrete = false;
+async function assurerTableBadges(env) {
+  if (tableBadgesPrete) return;
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS badges_obtenus (
+       carte_id TEXT NOT NULL, cle TEXT NOT NULL, obtenu TEXT NOT NULL, pincab_id TEXT NOT NULL DEFAULT '',
+       PRIMARY KEY (carte_id, cle))`).run();
+  tableBadgesPrete = true;
+}
+async function clesRealisations(env, carteId) {
+  const stats = await env.DB.prepare(
+    "SELECT COUNT(*) AS scores, COUNT(DISTINCT table_cle) AS tables FROM scores WHERE carte_id = ?").bind(carteId).first();
+  const places = await env.DB.prepare(`${MEILLEURS_SQL},
+      rg AS (SELECT m.carte_id, (SELECT COUNT(*) FROM m m2 WHERE m2.table_cle = m.table_cle AND m2.sc > m.sc) AS devant FROM m)
+    SELECT SUM(CASE WHEN devant = 0 THEN 1 ELSE 0 END) AS records, SUM(CASE WHEN devant < 3 THEN 1 ELSE 0 END) AS podiums
+      FROM rg WHERE carte_id = ?1`).bind(carteId).first();
+  return realisationsPour(Number(stats?.scores) || 0, Number(stats?.tables) || 0,
+                          Number(places?.records) || 0, Number(places?.podiums) || 0).map((x) => x.cle);
+}
+async function noterNouveauxBadges(env, carteId, pincabId, avant) {
+  try {
+    await assurerTableBadges(env);
+    const apres = await clesRealisations(env, carteId);
+    const nouveaux = apres.filter((c) => !avant.includes(c));
+    for (const cle of nouveaux) {
+      await env.DB.prepare("INSERT OR IGNORE INTO badges_obtenus (carte_id, cle, obtenu, pincab_id) VALUES (?, ?, ?, ?)")
+        .bind(carteId, cle, maintenant(), pincabId || "").run();
+    }
+  } catch (e) {
+    console.warn(JSON.stringify({ event: "badges_error", message: String(e?.message || e) }));
+  }
+}
+
 // ------------------------------------------------------------------ NOUVEAU : vérification automatique des scores
 // Le pincab signe ses scores, mais la clé est sur la machine de l'utilisateur : un tricheur pourrait signer
 // n'importe quoi. Chaque score reçu passe donc des contrôles de vraisemblance ; un score anormal n'entre pas
@@ -514,6 +550,35 @@ const API = {
     return json({ ok: true });
   },
 
+  // NOUVEAU : badges débloqués récemment (tous les joueurs). « depuis » = heure renvoyée par l'appel précédent ;
+  // sans « depuis » (première visite) : seulement les badges de la carte de ce téléphone des dernières 24 h.
+  async "GET /api/badges/recents"(req, env, url) {
+    await assurerTableBadges(env);
+    await attribuerRecompenses(env);
+    const maintenantIso = maintenant();
+    const depuisBrut = String(url.searchParams.get("depuis") || "");
+    const limite = new Date(Date.now() - 3 * 86400000).toISOString();
+    const premier = !/^\d{4}-\d\d-\d\dT/.test(depuisBrut);
+    const depuis = premier ? new Date(Date.now() - 86400000).toISOString() : (depuisBrut > limite ? depuisBrut : limite);
+    const carte = await carteDe(env, req);
+    const r = await env.DB.prepare(
+      `SELECT * FROM (
+         SELECT b.cle, '' AS periode, b.obtenu AS date, b.carte_id, c.pseudo, c.initiales,
+                (SELECT p.nom FROM pincabs p WHERE p.id = b.pincab_id) AS pincab
+           FROM badges_obtenus b JOIN cartes c ON c.id = b.carte_id
+          WHERE b.obtenu > ?1 AND c.pseudo <> 'Joueur supprimé'
+         UNION ALL
+         SELECT r.type AS cle, r.periode, r.cree AS date, r.carte_id, c.pseudo, c.initiales,
+                (SELECT p.nom FROM scores s JOIN pincabs p ON p.id = s.pincab_id WHERE s.carte_id = r.carte_id
+                  ORDER BY s.ajoute DESC LIMIT 1) AS pincab
+           FROM recompenses r JOIN cartes c ON c.id = r.carte_id
+          WHERE r.cree > ?1 AND c.pseudo <> 'Joueur supprimé')
+       ORDER BY date LIMIT 20`).bind(depuis).all();
+    let badges = (r.results || []).map((x) => ({ ...x, moi: !!carte && x.carte_id === carte.id }));
+    if (premier) badges = badges.filter((x) => x.moi);
+    return json({ ok: true, maintenant: maintenantIso, badges: badges.slice(-5) });
+  },
+
   // NOUVEAU : joueurs qui ont mis des scores en ligne (onglet « Joueurs » du Tableau des scores de PincabOS)
   async "GET /api/joueurs"(req, env, url) {
     const r = await env.DB.prepare(`${MEILLEURS_SQL},
@@ -709,6 +774,7 @@ const API = {
       console.warn(JSON.stringify({ event: "score_suspect", pc: d.pc, table: d.t, score: Number(d.sc), raison }));
       return json({ ok: true, en_verification: true, raison });
     }
+    const badgesAvant = await clesRealisations(env, carte.id);   // NOUVEAU : badges avant ce score
     const meilleurJoueurAvant = await env.DB.prepare(
       "SELECT MAX(score) AS m FROM scores WHERE table_cle = ? AND carte_id = ?").bind(d.t, carte.id).first();
     const nouveauRecordJoueur = Number(d.sc) > Number(meilleurJoueurAvant?.m || 0);
@@ -726,6 +792,7 @@ const API = {
     } catch (e) {
       return erreur("deja_en_ligne", 409);       // deux téléphones au même instant
     }
+    await noterNouveauxBadges(env, carte.id, d.pc, badgesAvant);   // NOUVEAU : badges débloqués par ce score
     const places = await rangs(env, d.t, d.pc, Number(d.sc));
     // Alerte seulement lors d'un record global ou d'une première entrée dans le Top 3.
     // Les améliorations suivantes d'un joueur déjà dans le Top 3 ne génèrent pas de spam.
@@ -1059,6 +1126,7 @@ const API = {
     const id = String(corps.id || "");
     const s = await env.DB.prepare("SELECT * FROM scores_suspects WHERE id = ?").bind(id).first();
     if (!s) return erreur("introuvable", 404);
+    const badgesAvant = corps.accepter ? await clesRealisations(env, s.carte_id) : [];   // NOUVEAU
     const ops = [env.DB.prepare("DELETE FROM scores_suspects WHERE id = ?").bind(id)];
     if (corps.accepter) {
       ops.unshift(env.DB.prepare(
@@ -1068,6 +1136,7 @@ const API = {
               s.date_partie, maintenant(), s.duree_partie));
     }
     await env.DB.batch(ops);
+    if (corps.accepter) await noterNouveauxBadges(env, s.carte_id, s.pincab_id, badgesAvant);   // NOUVEAU
     return json({ ok: true });
   },
 

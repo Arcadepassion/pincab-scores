@@ -39,6 +39,31 @@ a{color:var(--cyan)}a:hover{color:var(--cyan2)}
 .badge-img.verrou{filter:grayscale(1) brightness(.45)}.m-img>.m-reflet.verrou{filter:grayscale(1) brightness(.45)}
 .petits-badges{display:flex;flex-wrap:wrap;gap:4px 8px;margin-top:6px;align-items:flex-start}
 .petit-badge{display:inline-flex;align-items:flex-start;gap:2px;font-size:11px;font-weight:800;color:var(--or)}
+.badge-gauche{flex:0 0 auto;align-self:flex-start}.badge-gauche .badge-img{width:64px;height:64px}.badge-gauche .m-img{margin-bottom:22px}
+.son-bouton{width:40px;min-width:40px;height:40px;min-height:40px;padding:0;border:1px solid var(--bord2);border-radius:50%;background:var(--carte2);font-size:18px;line-height:1}
+.celeb{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;overflow:hidden;cursor:pointer;
+background:radial-gradient(circle at 50% 42%,rgba(70,18,120,.9),rgba(5,8,22,.95) 72%);opacity:0;transition:opacity .3s}
+.celeb.joue{opacity:1}.celeb.sortie{opacity:0}
+.celeb-rayons{position:absolute;left:50%;top:42%;width:900px;height:900px;margin:-450px 0 0 -450px;border-radius:50%;
+background:repeating-conic-gradient(from 0deg,rgba(255,215,90,.22) 0 8deg,rgba(255,61,240,0) 8deg 20deg);
+-webkit-mask-image:radial-gradient(circle,#000 0,transparent 60%);mask-image:radial-gradient(circle,#000 0,transparent 60%)}
+.celeb-confettis{position:absolute;inset:0;pointer-events:none}
+.confetti{position:absolute;left:50%;top:42%;width:9px;height:15px;margin:-7px 0 0 -4px;border-radius:2px;opacity:0}
+.celeb-boite{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;max-width:420px}
+.celeb-titre{font-family:Anton,Impact,sans-serif;font-size:34px;letter-spacing:1px;color:#FFE27A;
+text-shadow:0 0 18px rgba(255,200,61,.8),0 0 40px rgba(255,61,240,.55)}
+.celeb-badge-img{width:190px;height:190px;display:block;filter:drop-shadow(0 0 22px rgba(255,61,240,.55)) drop-shadow(0 0 40px rgba(34,211,238,.35))}
+.celeb-badge .m-img{margin-bottom:60px}.celeb-badge .m-reflet{filter:none}
+.celeb-nom{font-family:Anton,Impact,sans-serif;font-size:26px;color:#fff;letter-spacing:.5px}
+.celeb-qui{font-weight:800;color:var(--cyan2)}.celeb-fermer{margin-top:12px;font-size:13px;color:#8F9CC8}
+@media (prefers-reduced-motion:no-preference){.celeb.joue .celeb-rayons{animation:celeb-tourne 14s linear infinite}
+.celeb.joue .celeb-badge{animation:celeb-pop 1.1s cubic-bezier(.2,1.4,.4,1) both}
+.celeb.joue .celeb-titre{animation:celeb-titre .7s .25s both}
+.celeb.joue .confetti{animation:celeb-confetti var(--d) .15s cubic-bezier(.1,.7,.3,1) forwards}
+@keyframes celeb-pop{0%{transform:scale(0) rotate(-200deg);opacity:0}60%{transform:scale(1.18) rotate(8deg);opacity:1}80%{transform:scale(.95) rotate(-2deg)}100%{transform:scale(1) rotate(0)}}
+@keyframes celeb-tourne{to{transform:rotate(360deg)}}
+@keyframes celeb-titre{0%{transform:scale(2.2);opacity:0}100%{transform:scale(1);opacity:1}}
+@keyframes celeb-confetti{0%{opacity:1;transform:translate(0,0) rotate(0)}85%{opacity:1}100%{opacity:0;transform:translate(var(--x),var(--y)) rotate(var(--r))}}}
 .badge-img.mini{width:36px;height:36px}.petit-badge .m-img{margin-bottom:12px}
 .badge.recompense{padding:4px 10px;font-size:12px}
 .badge.r-jour{background:rgba(255,226,122,.14);color:#FFE27A}.badge.r-semaine{background:rgba(103,232,249,.14);color:#67E8F9}
@@ -1740,11 +1765,47 @@ var TEXTES = {
 (function (n) { Object.keys(n).forEach(function (l) { Object.assign(TEXTES[l], n[l]); }); })({"fr": {"objectif": "Objectif : {} pts pour gagner", "progression": "{} / {} pts", "succes_aide": "Record en ligne = 3 points, entrée dans le Top 3 = 1 point. Le meilleur joueur de chaque période gagne le succès pour toujours, à condition d'atteindre l'objectif ; sinon personne ne le gagne."}, "en": {"objectif": "Goal: {} pts to win", "progression": "{} / {} pts", "succes_aide": "Online record = 3 points, entering the Top 3 = 1 point. The best player of each period wins the achievement forever, provided they reach the goal; otherwise nobody wins it."}, "es": {"objectif": "Objetivo: {} pts para ganar", "progression": "{} / {} pts", "succes_aide": "Récord en línea = 3 puntos, entrada en el Top 3 = 1 punto. El mejor jugador de cada periodo gana el logro para siempre si alcanza el objetivo; si no, nadie lo gana."}, "it": {"objectif": "Obiettivo: {} pt per vincere", "progression": "{} / {} pt", "succes_aide": "Record online = 3 punti, ingresso nella Top 3 = 1 punto. Il miglior giocatore di ogni periodo vince l'obiettivo per sempre se raggiunge il traguardo; altrimenti nessuno lo vince."}, "de": {"objectif": "Ziel: {} Pkt. zum Gewinnen", "progression": "{} / {} Pkt.", "succes_aide": "Online-Rekord = 3 Punkte, Einzug in die Top 3 = 1 Punkt. Der beste Spieler jedes Zeitraums gewinnt den Erfolg für immer, wenn er das Ziel erreicht; sonst gewinnt ihn niemand."}, "pt": {"objectif": "Objetivo: {} pts para ganhar", "progression": "{} / {} pts", "succes_aide": "Recorde online = 3 pontos, entrada no Top 3 = 1 ponto. O melhor jogador de cada período ganha a conquista para sempre se atingir o objetivo; caso contrário, ninguém a ganha."}, "ja": {"objectif": "目標:{} pt で獲得", "progression": "{} / {} pt", "succes_aide": "オンライン記録 = 3ポイント、トップ3入り = 1ポイント。各期間のベストプレイヤーは目標に到達した場合のみ実績を永久に獲得します。到達しなければ誰も獲得しません。"}, "zh": {"objectif": "目标:{} 分即可获得", "progression": "{} / {} 分", "succes_aide": "在线纪录 = 3 分,进入前 3 名 = 1 分。每个阶段的最佳玩家只有达到目标才能永久获得成就;否则无人获得。"}, "ru": {"objectif": "Цель: {} оч. для победы", "progression": "{} / {} оч.", "succes_aide": "Онлайн-рекорд = 3 очка, вход в Топ-3 = 1 очко. Лучший игрок периода получает достижение навсегда, только если достигнет цели; иначе его не получает никто."}, "ar": {"objectif": "الهدف: {} نقطة للفوز", "progression": "{} / {} نقطة", "succes_aide": "رقم قياسي عبر الإنترنت = 3 نقاط، دخول أفضل 3 = نقطة واحدة. يفوز أفضل لاعب في كل فترة بالإنجاز إلى الأبد بشرط بلوغ الهدف؛ وإلا فلا يفوز به أحد."}});
 // NOUVEAU : textes des badges
 (function (n) { Object.keys(n).forEach(function (l) { Object.assign(TEXTES[l], n[l]); }); })({"fr": {"a_debloquer": "À débloquer", "debloque": "Débloqué"}, "en": {"a_debloquer": "Locked", "debloque": "Unlocked"}, "es": {"a_debloquer": "Por desbloquear", "debloque": "Desbloqueado"}, "it": {"a_debloquer": "Da sbloccare", "debloque": "Sbloccato"}, "de": {"a_debloquer": "Noch gesperrt", "debloque": "Freigeschaltet"}, "pt": {"a_debloquer": "Por desbloquear", "debloque": "Desbloqueado"}, "ja": {"a_debloquer": "未解除", "debloque": "解除済み"}, "zh": {"a_debloquer": "未解锁", "debloque": "已解锁"}, "ru": {"a_debloquer": "Не открыто", "debloque": "Открыто"}, "ar": {"a_debloquer": "مقفل", "debloque": "مفتوح"}});
+// NOUVEAU : textes des sons, de l'animation de badge et du tableau des badges à gagner
+(function (n) { Object.keys(n).forEach(function (l) { Object.assign(TEXTES[l], n[l]); }); })({"fr": {"badges_titre": "BADGES À GAGNER", "badges_aide": "Chaque badge se gagne une fois pour toutes. Un succès de période n'est gagné que si l'objectif est atteint ; sinon personne ne le gagne. Record en ligne = 3 points, entrée dans le Top 3 = 1 point.", "comment_premier_score": "Mettre son premier score en ligne.", "comment_cinq_tables": "Mettre un score en ligne sur 5 tables différentes.", "comment_dix_tables": "Mettre un score en ligne sur 10 tables différentes.", "comment_premier_podium": "Entrer dans le Top 3 en ligne d'une table.", "comment_premier_record": "Détenir le record en ligne d'une table.", "comment_cent_scores": "Mettre 100 scores en ligne.", "comment_jour": "Être le meilleur joueur de la journée avec au moins {} points.", "comment_semaine": "Être le meilleur joueur de la semaine avec au moins {} points.", "comment_mois": "Être le meilleur joueur du mois avec au moins {} points.", "comment_annee": "Être le meilleur joueur de l'année avec au moins {} points.", "son": "Son", "son_active": "Son activé", "son_coupe": "Son coupé", "badge_obtenu_moi": "BADGE DÉBLOQUÉ !", "badge_obtenu_autre": "NOUVEAU BADGE !", "badge_par": "{} a débloqué ce badge", "badge_toi": "Bravo, tu as débloqué ce badge !", "badge_pincab": "sur le pincab « {} »", "toucher_fermer": "Touchez pour fermer", "onglet_badges": "Badges"}, "en": {"badges_titre": "BADGES TO WIN", "badges_aide": "Each badge is won once and for all. A period achievement is only won if the goal is reached; otherwise nobody wins it. Online record = 3 points, entering the Top 3 = 1 point.", "comment_premier_score": "Put your first score online.", "comment_cinq_tables": "Get a score online on 5 different tables.", "comment_dix_tables": "Get a score online on 10 different tables.", "comment_premier_podium": "Enter the online Top 3 of a table.", "comment_premier_record": "Hold the online record of a table.", "comment_cent_scores": "Put 100 scores online.", "comment_jour": "Be the best player of the day with at least {} points.", "comment_semaine": "Be the best player of the week with at least {} points.", "comment_mois": "Be the best player of the month with at least {} points.", "comment_annee": "Be the best player of the year with at least {} points.", "son": "Sound", "son_active": "Sound on", "son_coupe": "Sound off", "badge_obtenu_moi": "BADGE UNLOCKED!", "badge_obtenu_autre": "NEW BADGE!", "badge_par": "{} unlocked this badge", "badge_toi": "Well done, you unlocked this badge!", "badge_pincab": "on the pincab “{}”", "toucher_fermer": "Tap to close", "onglet_badges": "Badges"}, "es": {"badges_titre": "INSIGNIAS POR GANAR", "badges_aide": "Cada insignia se gana una vez y para siempre. Un logro de periodo solo se gana si se alcanza el objetivo; si no, nadie lo gana. Récord en línea = 3 puntos, entrada en el Top 3 = 1 punto.", "comment_premier_score": "Publica tu primera puntuación en línea.", "comment_cinq_tables": "Consigue una puntuación en línea en 5 mesas distintas.", "comment_dix_tables": "Consigue una puntuación en línea en 10 mesas distintas.", "comment_premier_podium": "Entra en el Top 3 en línea de una mesa.", "comment_premier_record": "Ten el récord en línea de una mesa.", "comment_cent_scores": "Publica 100 puntuaciones en línea.", "comment_jour": "Sé el mejor jugador del día con al menos {} puntos.", "comment_semaine": "Sé el mejor jugador de la semana con al menos {} puntos.", "comment_mois": "Sé el mejor jugador del mes con al menos {} puntos.", "comment_annee": "Sé el mejor jugador del año con al menos {} puntos.", "son": "Sonido", "son_active": "Sonido activado", "son_coupe": "Sonido desactivado", "badge_obtenu_moi": "¡INSIGNIA DESBLOQUEADA!", "badge_obtenu_autre": "¡NUEVA INSIGNIA!", "badge_par": "{} ha desbloqueado esta insignia", "badge_toi": "¡Bravo, has desbloqueado esta insignia!", "badge_pincab": "en el pincab «{}»", "toucher_fermer": "Toca para cerrar", "onglet_badges": "Insignias"}, "it": {"badges_titre": "BADGE DA VINCERE", "badges_aide": "Ogni badge si vince una volta per sempre. Un obiettivo del periodo si vince solo se si raggiunge il traguardo; altrimenti nessuno lo vince. Record online = 3 punti, ingresso nella Top 3 = 1 punto.", "comment_premier_score": "Pubblica il tuo primo punteggio online.", "comment_cinq_tables": "Ottieni un punteggio online su 5 tavoli diversi.", "comment_dix_tables": "Ottieni un punteggio online su 10 tavoli diversi.", "comment_premier_podium": "Entra nella Top 3 online di un tavolo.", "comment_premier_record": "Detieni il record online di un tavolo.", "comment_cent_scores": "Pubblica 100 punteggi online.", "comment_jour": "Sii il miglior giocatore del giorno con almeno {} punti.", "comment_semaine": "Sii il miglior giocatore della settimana con almeno {} punti.", "comment_mois": "Sii il miglior giocatore del mese con almeno {} punti.", "comment_annee": "Sii il miglior giocatore dell'anno con almeno {} punti.", "son": "Audio", "son_active": "Audio attivo", "son_coupe": "Audio disattivato", "badge_obtenu_moi": "BADGE SBLOCCATO!", "badge_obtenu_autre": "NUOVO BADGE!", "badge_par": "{} ha sbloccato questo badge", "badge_toi": "Bravo, hai sbloccato questo badge!", "badge_pincab": "sul pincab «{}»", "toucher_fermer": "Tocca per chiudere", "onglet_badges": "Badge"}, "de": {"badges_titre": "ABZEICHEN ZU GEWINNEN", "badges_aide": "Jedes Abzeichen wird ein für alle Mal gewonnen. Ein Erfolg des Zeitraums wird nur gewonnen, wenn das Ziel erreicht wird; sonst gewinnt ihn niemand. Online-Rekord = 3 Punkte, Einzug in die Top 3 = 1 Punkt.", "comment_premier_score": "Stelle deinen ersten Punktestand online.", "comment_cinq_tables": "Erziele online einen Punktestand auf 5 verschiedenen Tischen.", "comment_dix_tables": "Erziele online einen Punktestand auf 10 verschiedenen Tischen.", "comment_premier_podium": "Komme online in die Top 3 eines Tisches.", "comment_premier_record": "Halte den Online-Rekord eines Tisches.", "comment_cent_scores": "Stelle 100 Punktestände online.", "comment_jour": "Sei der beste Spieler des Tages mit mindestens {} Punkten.", "comment_semaine": "Sei der beste Spieler der Woche mit mindestens {} Punkten.", "comment_mois": "Sei der beste Spieler des Monats mit mindestens {} Punkten.", "comment_annee": "Sei der beste Spieler des Jahres mit mindestens {} Punkten.", "son": "Ton", "son_active": "Ton an", "son_coupe": "Ton aus", "badge_obtenu_moi": "ABZEICHEN FREIGESCHALTET!", "badge_obtenu_autre": "NEUES ABZEICHEN!", "badge_par": "{} hat dieses Abzeichen freigeschaltet", "badge_toi": "Bravo, du hast dieses Abzeichen freigeschaltet!", "badge_pincab": "auf dem Pincab „{}“", "toucher_fermer": "Tippen zum Schließen", "onglet_badges": "Abzeichen"}, "pt": {"badges_titre": "EMBLEMAS A GANHAR", "badges_aide": "Cada emblema ganha-se de uma vez por todas. Uma conquista do período só é ganha se o objetivo for atingido; caso contrário, ninguém a ganha. Recorde online = 3 pontos, entrada no Top 3 = 1 ponto.", "comment_premier_score": "Coloca a tua primeira pontuação online.", "comment_cinq_tables": "Consegue uma pontuação online em 5 mesas diferentes.", "comment_dix_tables": "Consegue uma pontuação online em 10 mesas diferentes.", "comment_premier_podium": "Entra no Top 3 online de uma mesa.", "comment_premier_record": "Detém o recorde online de uma mesa.", "comment_cent_scores": "Coloca 100 pontuações online.", "comment_jour": "Sê o melhor jogador do dia com pelo menos {} pontos.", "comment_semaine": "Sê o melhor jogador da semana com pelo menos {} pontos.", "comment_mois": "Sê o melhor jogador do mês com pelo menos {} pontos.", "comment_annee": "Sê o melhor jogador do ano com pelo menos {} pontos.", "son": "Som", "son_active": "Som ligado", "son_coupe": "Som desligado", "badge_obtenu_moi": "EMBLEMA DESBLOQUEADO!", "badge_obtenu_autre": "NOVO EMBLEMA!", "badge_par": "{} desbloqueou este emblema", "badge_toi": "Parabéns, desbloqueaste este emblema!", "badge_pincab": "no pincab «{}»", "toucher_fermer": "Toca para fechar", "onglet_badges": "Emblemas"}, "ja": {"badges_titre": "獲得できるバッジ", "badges_aide": "各バッジは一度獲得すると永久に残ります。期間の実績は目標に到達した場合のみ獲得でき、到達しなければ誰も獲得しません。オンライン記録 = 3ポイント、トップ3入り = 1ポイント。", "comment_premier_score": "最初のスコアをオンラインに登録する。", "comment_cinq_tables": "5つの異なるテーブルでスコアをオンラインに登録する。", "comment_dix_tables": "10の異なるテーブルでスコアをオンラインに登録する。", "comment_premier_podium": "テーブルのオンライン・トップ3に入る。", "comment_premier_record": "テーブルのオンライン記録を保持する。", "comment_cent_scores": "100件のスコアをオンラインに登録する。", "comment_jour": "{} ポイント以上で今日のベストプレイヤーになる。", "comment_semaine": "{} ポイント以上で今週のベストプレイヤーになる。", "comment_mois": "{} ポイント以上で今月のベストプレイヤーになる。", "comment_annee": "{} ポイント以上で今年のベストプレイヤーになる。", "son": "サウンド", "son_active": "サウンド オン", "son_coupe": "サウンド オフ", "badge_obtenu_moi": "バッジ解除!", "badge_obtenu_autre": "新しいバッジ!", "badge_par": "{} がこのバッジを解除しました", "badge_toi": "おめでとう、このバッジを解除しました!", "badge_pincab": "pincab「{}」で", "toucher_fermer": "タップして閉じる", "onglet_badges": "バッジ"}, "zh": {"badges_titre": "可获得的徽章", "badges_aide": "每枚徽章一经获得永久保留。阶段成就只有达到目标才能获得;否则无人获得。在线纪录 = 3 分,进入前 3 名 = 1 分。", "comment_premier_score": "在线发布你的第一个分数。", "comment_cinq_tables": "在 5 张不同的台上在线发布分数。", "comment_dix_tables": "在 10 张不同的台上在线发布分数。", "comment_premier_podium": "进入某张台的在线前 3 名。", "comment_premier_record": "保持某张台的在线纪录。", "comment_cent_scores": "在线发布 100 个分数。", "comment_jour": "以至少 {} 分成为今日最佳玩家。", "comment_semaine": "以至少 {} 分成为本周最佳玩家。", "comment_mois": "以至少 {} 分成为本月最佳玩家。", "comment_annee": "以至少 {} 分成为年度最佳玩家。", "son": "声音", "son_active": "声音已开启", "son_coupe": "声音已关闭", "badge_obtenu_moi": "徽章已解锁!", "badge_obtenu_autre": "新徽章!", "badge_par": "{} 解锁了这枚徽章", "badge_toi": "恭喜,你解锁了这枚徽章!", "badge_pincab": "在 pincab「{}」上", "toucher_fermer": "点击关闭", "onglet_badges": "徽章"}, "ru": {"badges_titre": "ЗНАЧКИ ДЛЯ ПОЛУЧЕНИЯ", "badges_aide": "Каждый значок получают раз и навсегда. Достижение периода выдаётся, только если цель достигнута; иначе его не получает никто. Онлайн-рекорд = 3 очка, вход в Топ-3 = 1 очко.", "comment_premier_score": "Опубликуйте свой первый результат онлайн.", "comment_cinq_tables": "Опубликуйте результаты онлайн на 5 разных столах.", "comment_dix_tables": "Опубликуйте результаты онлайн на 10 разных столах.", "comment_premier_podium": "Войдите в онлайн Топ-3 стола.", "comment_premier_record": "Удерживайте онлайн-рекорд стола.", "comment_cent_scores": "Опубликуйте 100 результатов онлайн.", "comment_jour": "Станьте лучшим игроком дня, набрав не менее {} очков.", "comment_semaine": "Станьте лучшим игроком недели, набрав не менее {} очков.", "comment_mois": "Станьте лучшим игроком месяца, набрав не менее {} очков.", "comment_annee": "Станьте лучшим игроком года, набрав не менее {} очков.", "son": "Звук", "son_active": "Звук включён", "son_coupe": "Звук выключен", "badge_obtenu_moi": "ЗНАЧОК ОТКРЫТ!", "badge_obtenu_autre": "НОВЫЙ ЗНАЧОК!", "badge_par": "{} открыл(а) этот значок", "badge_toi": "Браво, вы открыли этот значок!", "badge_pincab": "на pincab «{}»", "toucher_fermer": "Нажмите, чтобы закрыть", "onglet_badges": "Значки"}, "ar": {"badges_titre": "شارات يمكن الفوز بها", "badges_aide": "تُكسب كل شارة مرة واحدة وإلى الأبد. لا يُكسب إنجاز الفترة إلا عند بلوغ الهدف؛ وإلا فلا يفوز به أحد. رقم قياسي عبر الإنترنت = 3 نقاط، دخول أفضل 3 = نقطة واحدة.", "comment_premier_score": "انشر أول نتيجة لك عبر الإنترنت.", "comment_cinq_tables": "سجّل نتيجة عبر الإنترنت على 5 طاولات مختلفة.", "comment_dix_tables": "سجّل نتيجة عبر الإنترنت على 10 طاولات مختلفة.", "comment_premier_podium": "ادخل ضمن أفضل 3 عبر الإنترنت على طاولة.", "comment_premier_record": "احتفظ بالرقم القياسي عبر الإنترنت لطاولة.", "comment_cent_scores": "انشر 100 نتيجة عبر الإنترنت.", "comment_jour": "كن أفضل لاعب في اليوم بما لا يقل عن {} نقاط.", "comment_semaine": "كن أفضل لاعب في الأسبوع بما لا يقل عن {} نقاط.", "comment_mois": "كن أفضل لاعب في الشهر بما لا يقل عن {} نقاط.", "comment_annee": "كن أفضل لاعب في السنة بما لا يقل عن {} نقاط.", "son": "الصوت", "son_active": "الصوت مفعّل", "son_coupe": "الصوت مكتوم", "badge_obtenu_moi": "تم فتح شارة!", "badge_obtenu_autre": "شارة جديدة!", "badge_par": "فتح {} هذه الشارة", "badge_toi": "أحسنت، لقد فتحت هذه الشارة!", "badge_pincab": "على الـ pincab «{}»", "toucher_fermer": "المس للإغلاق", "onglet_badges": "الشارات"}});
 var LANGUES = [["fr", "Français", "fr"], ["en", "English", "gb"], ["es", "Español", "es"], ["it", "Italiano", "it"],
   ["de", "Deutsch", "de"], ["pt", "Português", "pt"], ["ja", "日本語", "jp"], ["zh", "中文", "cn"],
   ["ru", "Русский", "ru"], ["ar", "العربية", "ar"]];
-var LANGUE = "fr";
-try { var choisie = localStorage.getItem("pincabos_langue"); if (choisie && TEXTES[choisie]) LANGUE = choisie; } catch (e) {}
+// CORRECTIF : réglages gardés sur le téléphone ; si le stockage est bloqué (navigation privée, navigateur intégré
+// d'une appli de scan, cookies refusés…), ils sont gardés dans l'onglet (window.name) pour toute la visite.
+function nomFenetre() {
+  var o = {};
+  try { (window.name || "").split("|").forEach(function (x) { var i = x.indexOf("="); if (i > 0) o[x.slice(0, i)] = x.slice(i + 1); }); } catch (e) {}
+  return o;
+}
+function lireReglage(cle) {
+  var v = null;
+  try { v = localStorage.getItem(cle); } catch (e) {}
+  if (v === null || v === undefined) v = nomFenetre()[cle];
+  return v === null || v === undefined ? "" : String(v);
+}
+function garderReglage(cle, valeur) {
+  try { localStorage.setItem(cle, valeur); } catch (e) {}
+  try {
+    var o = nomFenetre(); o[cle] = String(valeur).replace(/[|=]/g, "");
+    window.name = Object.keys(o).map(function (k) { return k + "=" + o[k]; }).join("|");
+  } catch (e) {}
+}
+// CORRECTIF : avant, la langue n'était lue que dans le stockage du téléphone : s'il était bloqué, la page se
+// rechargeait toujours en français. Elle est maintenant lue dans l'adresse (?lang=), le téléphone, un cookie
+// et l'onglet, dans cet ordre.
+function langueEnregistree() {
+  var l = "";
+  try { l = new URLSearchParams(location.search).get("lang") || ""; } catch (e) {}
+  if (!TEXTES[l]) l = lireReglage("pincabos_langue");
+  if (!TEXTES[l]) { var c = /(?:^|;\\s*)pincabos_langue=([a-z]{2})/.exec(document.cookie || ""); l = c ? c[1] : ""; }
+  return TEXTES[l] ? l : "fr";
+}
+function garderLangue(l) {
+  garderReglage("pincabos_langue", l);
+  try { document.cookie = "pincabos_langue=" + l + "; path=/; max-age=31536000; samesite=lax"; } catch (e) {}
+}
+var LANGUE = langueEnregistree();
+garderLangue(LANGUE);
 var T = TEXTES[LANGUE];
 document.documentElement.lang = LANGUE;
 document.documentElement.dir = LANGUE === "ar" ? "rtl" : "ltr";
@@ -1825,6 +1886,147 @@ function boutonIco(nom, texte, attrs) {
   return el(attrs.href ? "a" : "button", attrs.href ? attrs : Object.assign({ type: "button" }, attrs),
             ico(nom), el("span", {}, texte));
 }
+// NOUVEAU : sons du site, synthétisés dans le navigateur (aucun fichier à télécharger) : entrée (lien ouvert),
+// retour (bouton ←) et badge débloqué. Le bouton 🔊 de l'en-tête les coupe ; le choix est gardé.
+var SON = { ctx: null, actif: lireReglage("pincabos_son") !== "0" };
+function contexteAudio() {
+  if (!SON.ctx) {
+    var A = window.AudioContext || window.webkitAudioContext;
+    if (!A) return null;
+    try { SON.ctx = new A(); } catch (e) { return null; }
+  }
+  if (SON.ctx.state === "suspended") { try { SON.ctx.resume(); } catch (e) {} }
+  return SON.ctx;
+}
+function note(ctx, frequence, debut, duree, forme, volume, glisse) {
+  var o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = forme || "square";
+  o.frequency.setValueAtTime(frequence, debut);
+  if (glisse) o.frequency.exponentialRampToValueAtTime(glisse, debut + duree);
+  g.gain.setValueAtTime(0.0001, debut);
+  g.gain.exponentialRampToValueAtTime(volume || 0.06, debut + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, debut + duree);
+  o.connect(g); g.connect(ctx.destination);
+  o.start(debut); o.stop(debut + duree + 0.03);
+}
+// Renvoie true si le son a vraiment pu être joué (le navigateur bloque le son tant qu'on n'a pas touché la page).
+function jouerSon(type) {
+  if (!SON.actif) return false;
+  var ctx = contexteAudio();
+  if (!ctx) return false;
+  var t0 = ctx.currentTime + 0.01;
+  if (type === "entree") {
+    note(ctx, 520, t0, 0.07, "square", 0.04, 780);
+    note(ctx, 1040, t0 + 0.06, 0.1, "triangle", 0.07);
+  } else if (type === "retour") {
+    note(ctx, 880, t0, 0.07, "triangle", 0.07, 590);
+    note(ctx, 440, t0 + 0.06, 0.11, "square", 0.035, 330);
+  } else if (type === "badge") {
+    [523.25, 659.25, 783.99, 1046.5].forEach(function (f, i) {
+      note(ctx, f, t0 + i * 0.09, 0.16, "square", 0.04);
+      note(ctx, f * 2, t0 + i * 0.09, 0.14, "triangle", 0.025);
+    });
+    note(ctx, 1046.5, t0 + 0.38, 0.8, "triangle", 0.08);
+    note(ctx, 1318.5, t0 + 0.38, 0.8, "triangle", 0.05);
+    note(ctx, 1567.98, t0 + 0.38, 0.8, "sine", 0.05);
+    for (var i = 0; i < 7; i++) note(ctx, 2093 + i * 240, t0 + 0.46 + i * 0.07, 0.09, "sine", 0.02);   // scintillement
+  }
+  return ctx.state === "running";
+}
+function boutonSon() {
+  var b = el("button", { type: "button", class: "son-bouton", "aria-pressed": SON.actif ? "true" : "false" });
+  function maj() {
+    b.textContent = SON.actif ? "🔊" : "🔇";
+    b.setAttribute("aria-label", T.son + " : " + (SON.actif ? T.son_active : T.son_coupe));
+    b.setAttribute("title", SON.actif ? T.son_active : T.son_coupe);
+    b.setAttribute("aria-pressed", SON.actif ? "true" : "false");
+  }
+  b.addEventListener("click", function (ev) {
+    ev.stopPropagation();
+    SON.actif = !SON.actif;
+    garderReglage("pincabos_son", SON.actif ? "1" : "0");
+    maj();
+    jouerSon("entree");
+  });
+  maj();
+  return b;
+}
+// Son d'entrée sur chaque lien du site : la page suivante s'ouvre 0,14 s plus tard pour qu'il s'entende.
+document.addEventListener("click", function (ev) {
+  if (ev.defaultPrevented || ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || !SON.actif) return;
+  var a = ev.target && ev.target.closest ? ev.target.closest("a[href]") : null;
+  if (!a || a.target === "_blank" || a.hasAttribute("download")) return;
+  var u;
+  try { u = new URL(a.getAttribute("href"), location.href); } catch (e) { return; }
+  if (u.origin !== location.origin) return;
+  ev.preventDefault();
+  jouerSon("entree");
+  setTimeout(function () { location.href = u.href; }, 140);
+});
+
+// NOUVEAU : animation (et son) quand un joueur débloque un badge, soi-même ou un autre joueur.
+// Le site demande les badges débloqués depuis la dernière visite (/api/badges/recents).
+var CELEB = { file: [], encours: false };
+var COULEURS_CONFETTIS = ["#FF3DF0", "#22D3EE", "#FFE27A", "#A855F7", "#FF8A3D", "#67E8F9"];
+function celebrer(b) { CELEB.file.push(b); if (!CELEB.encours) celebrationSuivante(); }
+function celebrationSuivante() {
+  var b = CELEB.file.shift();
+  if (!b) { CELEB.encours = false; return; }
+  CELEB.encours = true;
+  var confettis = [];
+  for (var i = 0; i < 40; i++) {
+    var angle = Math.random() * Math.PI * 2, dist = 140 + Math.random() * 260;
+    confettis.push(el("i", { class: "confetti", style: "--x:" + Math.round(Math.cos(angle) * dist) + "px;--y:" +
+      Math.round(Math.sin(angle) * dist + 120) + "px;--r:" + Math.round(Math.random() * 720 - 360) + "deg;--d:" +
+      (1.1 + Math.random() * 0.9).toFixed(2) + "s;background:" + COULEURS_CONFETTIS[i % COULEURS_CONFETTIS.length] }));
+  }
+  var qui = b.moi ? T.badge_toi : t("badge_par", (b.initiales ? b.initiales + " " : "") + (b.pseudo || ""));
+  var titre = b.moi ? T.badge_obtenu_moi : T.badge_obtenu_autre;
+  var fond = el("div", { class: "celeb", role: "dialog", "aria-modal": "true", "aria-label": titre },
+    el("div", { class: "celeb-rayons" }),
+    el("div", { class: "celeb-confettis", "aria-hidden": "true" }, confettis),
+    el("div", { class: "celeb-boite" },
+      mt(el("div", { class: "celeb-titre" }, titre)),
+      el("div", { class: "celeb-badge" }, mi(el("img", { src: "/images/badges/" + b.cle + ".svg", alt: "", class: "celeb-badge-img" }))),
+      el("b", { class: "celeb-nom" }, T["succes_" + b.cle] || b.cle),
+      el("span", { class: "celeb-qui" }, qui),
+      b.pincab && !b.moi ? el("span", { class: "petit" }, t("badge_pincab", b.pincab)) : null,
+      el("span", { class: "celeb-fermer" }, T.toucher_fermer)));
+  var sonJoue = jouerSon("badge"), minuterie = null;
+  function rejouer() {
+    fond.classList.remove("joue"); void fond.offsetWidth; fond.classList.add("joue");
+    clearTimeout(minuterie); minuterie = setTimeout(fermer, 7000);
+  }
+  function fermer() {
+    clearTimeout(minuterie);
+    document.removeEventListener("keydown", touche);
+    fond.classList.add("sortie");
+    setTimeout(function () { if (fond.parentNode) fond.parentNode.removeChild(fond); celebrationSuivante(); }, 350);
+  }
+  function touche(ev) { if (ev.key === "Escape") fermer(); }
+  // le navigateur bloque le son tant que la page n'a pas été touchée : le premier toucher le joue et relance
+  // l'animation, le suivant ferme
+  fond.addEventListener("click", function () {
+    if (!sonJoue && SON.actif) { sonJoue = true; jouerSon("badge"); rejouer(); return; }
+    fermer();
+  });
+  document.addEventListener("keydown", touche);
+  document.body.appendChild(fond);
+  requestAnimationFrame(function () { rejouer(); });
+}
+function verifierBadges() {
+  var depuis = lireReglage("pincabos_badges_depuis");
+  api("GET", "/api/badges/recents" + (depuis ? "?depuis=" + encodeURIComponent(depuis) : "")).then(function (r) {
+    if (!r || !r.ok) return;
+    garderReglage("pincabos_badges_depuis", r.maintenant);
+    (r.badges || []).slice(-3).forEach(celebrer);
+  });
+}
+if (location.pathname !== "/admin") {
+  setTimeout(verifierBadges, 1200);
+  setInterval(function () { if (!document.hidden && !CELEB.encours) verifierBadges(); }, 60000);
+}
+
 var APP = document.getElementById("app");
 function afficher() {
   APP.textContent = "";
@@ -1861,11 +2063,12 @@ function entete() {
       onclick: function () {
         var precedent = "";
         try { precedent = document.referrer ? new URL(document.referrer).origin : ""; } catch (e) {}
-        if (precedent === location.origin) history.back(); else location.href = "/";
+        jouerSon("retour");   // NOUVEAU : son de retour (la page change juste après, pour qu'il s'entende)
+        setTimeout(function () { if (precedent === location.origin) history.back(); else location.href = "/"; }, SON.actif ? 150 : 0);
       } }, "←") : null,
     el("a", { class: "logo", href: "/", "aria-label": "PincabOS Scores" },
       el("img", { src: "/images/logo.png", alt: "PincabOS" }), el("span", { class: "logo-texte" }, " SCORES")),
-    el("div", { class: "entete-droite" }, choixLangue(),
+    el("div", { class: "entete-droite" }, boutonSon(), choixLangue(),
       el("a", { class: "pastille avec-ico", href: "/carte", "aria-label": T.ma_carte, style: "gap:6px;padding:0 12px 0 8px" },
         el("img", { src: "/images/carte.png", alt: "", "aria-hidden": "true", class: "ico" }),
         el("span", { class: "pastille-texte" + (code && window.INITIALES ? "" : " long") },
@@ -1889,8 +2092,12 @@ function choixLangue() {
   LANGUES.forEach(function (l) {
     ajouter(menu, el("li", {}, el("button", { type: "button", role: "option", lang: l[0], "aria-selected": l[0] === LANGUE ? "true" : "false",
       class: l[0] === LANGUE ? "actif" : "", onclick: function () {
-        try { localStorage.setItem("pincabos_langue", l[0]); } catch (e) {}
-        location.reload();
+        // CORRECTIF : la langue est aussi mise dans l'adresse : la page rechargée est traduite même si le
+        // téléphone refuse de garder le choix
+        garderLangue(l[0]);
+        var adresse = new URL(location.href);
+        adresse.searchParams.set("lang", l[0]);
+        location.replace(adresse.toString());
       } }, drapeau(l), el("span", {}, l[1]))));
   });
   return el("div", { class: "langue" }, bouton, menu);
@@ -2323,6 +2530,7 @@ function blocChampions(ch) {
     // CORRECTIF : objectif de la période ; le joueur en tête doit l'atteindre pour gagner le succès
     function progression(x) { return t("progression", x.points, c.objectif || 0) + " (" + nombre(x.records) + " " + T.records + ", " + nombre(x.top3) + " " + T.top3_court + ")"; }
     return el("div", { class: "ligne score-rgb" },
+      el("div", { class: "badge-gauche" }, imageBadge(p, true)),   // NOUVEAU : à quoi ressemble le badge à gagner
       el("div", { class: "milieu" },
         el("b", { class: "or" }, T["succes_" + p]),
         el("span", { class: "petit", style: "color:#FFC83D" }, t("objectif", c.objectif || 0)),
@@ -2337,11 +2545,28 @@ function blocChampions(ch) {
     el("div", { class: "petit" }, T.succes_aide),
     el("div", { class: "liste" }, lignes));
 }
+// NOUVEAU : tableau des badges à gagner : le badge, son nom et comment l'obtenir
+var OBJECTIFS_DEFAUT = { jour: 3, semaine: 10, mois: 30, annee: 150 };
+function blocBadgesAGagner(ch) {
+  var lignes = PERIODES.concat(BADGES_REALISATIONS).map(function (cle) {
+    var objectif = ((ch || {})[cle] || {}).objectif || OBJECTIFS_DEFAUT[cle];
+    return el("div", { class: "ligne explication-badge" },
+      el("div", { class: "badge-gauche" }, imageBadge(cle, true)),
+      el("div", { class: "milieu" },
+        el("b", { class: "or" }, T["succes_" + cle] || cle),
+        el("span", { class: "petit" }, objectif ? t("comment_" + cle, nombre(objectif)) : T["comment_" + cle])));
+  });
+  return el("div", { class: "bloc" },
+    el("div", { class: "avec-ico", style: "justify-content:flex-start" }, ico("trophee", "moyenne"),
+      el("b", { class: "titre", style: "font-size:20px" }, T.badges_titre)),
+    el("div", { class: "petit" }, T.badges_aide),
+    el("div", { class: "liste" }, lignes));
+}
 function zonePodium() {
   var zone = el("div", { class: "liste", style: "gap:14px" });
   api("GET", "/api/podium").then(function (r) {
     if (!r.ok) return;
-    ajouter(zone, [blocPodium(r.podium), blocChampions(r.champions)]);   // CORRECTIF : ajouter() prend une liste
+    ajouter(zone, [blocPodium(r.podium), blocChampions(r.champions), blocBadgesAGagner(r.champions)]);   // CORRECTIF : ajouter() prend une liste
   });
   return zone;
 }
