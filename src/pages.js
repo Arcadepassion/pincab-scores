@@ -42,6 +42,15 @@ a{color:var(--cyan)}a:hover{color:var(--cyan2)}
 .explication-badge.verrou .petit{color:var(--gris)}.etat-badge{font-size:20px;color:var(--gris)}.etat-badge.gagne{font-family:Anton,Impact,sans-serif;font-size:22px;color:#FFE27A}
 .badge-gauche{flex:0 0 auto;align-self:flex-start}.badge-gauche .badge-img{width:64px;height:64px}.badge-gauche .m-img{margin-bottom:22px}
 .son-bouton{width:40px;min-width:40px;height:40px;min-height:40px;padding:0;border:1px solid var(--bord2);border-radius:50%;background:var(--carte2);font-size:18px;line-height:1}
+.banniere-badge{position:fixed;left:50%;top:10px;z-index:190;display:flex;align-items:center;gap:12px;width:min(92vw,430px);
+padding:10px 14px;border-radius:16px;background:rgba(13,20,48,.94);border:2px solid #FFC83D;cursor:pointer;
+box-shadow:0 10px 30px rgba(0,0,0,.55),0 0 18px rgba(255,200,61,.35);transform:translate(-50%,-140%);transition:transform .45s cubic-bezier(.2,1.3,.4,1)}
+.banniere-badge.visible{transform:translate(-50%,0)}
+.banniere-img img{width:56px;height:56px;display:block}
+.banniere-txt{display:flex;flex-direction:column;min-width:0}
+.banniere-titre{font-size:11px;font-weight:900;letter-spacing:1px;color:#FFE27A}
+.banniere-txt b{font-size:16px;color:#fff}.banniere-txt .petit{color:var(--cyan2)}
+@media (prefers-reduced-motion:reduce){.banniere-badge{transition:none}}
 .celeb{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;overflow:hidden;cursor:pointer;
 background:radial-gradient(circle at 50% 42%,rgba(70,18,120,.9),rgba(5,8,22,.95) 72%);opacity:0;transition:opacity .3s}
 .celeb.joue{opacity:1}.celeb.sortie{opacity:0}
@@ -1944,6 +1953,9 @@ function jouerSon(type) {
   } else if (type === "retour") {
     note(ctx, 880, t0, 0.07, "triangle", 0.07, 590);
     note(ctx, 440, t0 + 0.06, 0.11, "square", 0.035, 330);
+  } else if (type === "carillon") {   // NOUVEAU : badge d'un autre joueur
+    note(ctx, 1318.5, t0, 0.18, "triangle", 0.05);
+    note(ctx, 1975.5, t0 + 0.1, 0.3, "sine", 0.04);
   } else if (type === "badge") {
     [523.25, 659.25, 783.99, 1046.5].forEach(function (f, i) {
       note(ctx, f, t0 + i * 0.09, 0.16, "square", 0.04);
@@ -2021,7 +2033,37 @@ window.addEventListener("popstate", function (ev) {
 // Le site demande les badges débloqués depuis la dernière visite (/api/badges/recents).
 var CELEB = { file: [], encours: false };
 var COULEURS_CONFETTIS = ["#FF3DF0", "#22D3EE", "#FFE27A", "#A855F7", "#FF8A3D", "#67E8F9"];
-function celebrer(b) { CELEB.file.push(b); if (!CELEB.encours) celebrationSuivante(); }
+function celebrer(b) {
+  if (!b.moi) { banniereBadge(b); return; }   // CORRECTIF : badge d'un autre joueur = bannière discrète
+  CELEB.file.push(b); if (!CELEB.encours) celebrationSuivante();
+}
+// NOUVEAU : badge débloqué par un AUTRE joueur : bannière qui glisse en haut de l'écran (5 s), petit carillon.
+// Le plein écran avec fanfare et confettis est réservé à ses propres badges.
+var BANNIERES = { file: [], encours: false };
+function banniereBadge(b) { BANNIERES.file.push(b); if (!BANNIERES.encours) banniereSuivante(); }
+function banniereSuivante() {
+  var b = BANNIERES.file.shift();
+  if (!b) { BANNIERES.encours = false; return; }
+  BANNIERES.encours = true;
+  var qui = t("badge_par", (b.initiales ? b.initiales + " " : "") + (b.pseudo || ""));
+  var boite = el("div", { class: "banniere-badge", role: "status" },
+    el("div", { class: "banniere-img" }, el("img", { src: "/images/badges/" + b.cle + ".svg", alt: "" })),
+    el("div", { class: "banniere-txt" },
+      el("span", { class: "banniere-titre" }, T.badge_obtenu_autre),
+      el("b", {}, T["succes_" + b.cle] || b.cle),
+      el("span", { class: "petit" }, qui + (b.pincab ? " · " + b.pincab : ""))));
+  var minuterie = null;
+  function fermer() {
+    clearTimeout(minuterie);
+    boite.classList.remove("visible");
+    setTimeout(function () { if (boite.parentNode) boite.parentNode.removeChild(boite); banniereSuivante(); }, 450);
+  }
+  boite.addEventListener("click", fermer);
+  document.body.appendChild(boite);
+  requestAnimationFrame(function () { requestAnimationFrame(function () { boite.classList.add("visible"); }); });
+  jouerSon("carillon");
+  minuterie = setTimeout(fermer, 5000);
+}
 function celebrationSuivante() {
   var b = CELEB.file.shift();
   if (!b) { CELEB.encours = false; return; }
