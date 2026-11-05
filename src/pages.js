@@ -2533,7 +2533,7 @@ function blocChampions(ch) {
       el("div", { class: "badge-gauche" }, imageBadge(p, true)),   // NOUVEAU : à quoi ressemble le badge à gagner
       el("div", { class: "milieu" },
         el("b", { class: "or" }, T["succes_" + p]),
-        el("span", { class: "petit", style: "color:#FFC83D" }, t("objectif", c.objectif || 0)),
+        // CORRECTIF : la règle pour gagner le badge n'est plus répétée ici : elle est dans « Badges à gagner »
         el("span", { class: "petit" }, T.en_tete + " : " + (e ? qui(e) + " — " + progression(e) +
           (e.points >= (c.objectif || 0) ? " ✓" : "") : T.personne)),
         el("span", { class: "petit" }, T["dernier_" + p] + " : " + (g ? qui(g) + " — " + detail(g) : T.personne))),
@@ -2542,7 +2542,6 @@ function blocChampions(ch) {
   return el("div", { class: "bloc" },
     el("div", { class: "avec-ico", style: "justify-content:flex-start" }, ico("trophee", "moyenne"),
       el("b", { class: "titre", style: "font-size:20px" }, T.succes_titre)),
-    el("div", { class: "petit" }, T.succes_aide),
     el("div", { class: "liste" }, lignes));
 }
 // NOUVEAU : tableau des badges à gagner : le badge, son nom et comment l'obtenir
