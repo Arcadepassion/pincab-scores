@@ -956,6 +956,36 @@ const API = {
     return json({ ok: true });
   },
 
+  // NOUVEAU : effacement complet d'un profil depuis le Setup du pincab qui l'a créé (le Setup garde le code du
+  // profil). Contrairement à la suppression depuis le téléphone (scores gardés anonymes), TOUT disparaît :
+  // scores, scores en vérification, alertes, liens, notifications, badges, succès et le profil lui-même.
+  async "POST /api/carte/effacer"(req, env) {
+    const carte = await carteDe(env, req);
+    if (!carte) return erreur("carte_requise", 401);
+    await assurerTableSuspects(env);
+    await assurerTableBadges(env);
+    await assurerTableRecompenses(env);
+    await env.DB.batch([
+      env.DB.prepare("DELETE FROM scores WHERE carte_id = ?").bind(carte.id),
+      env.DB.prepare("DELETE FROM scores_suspects WHERE carte_id = ?").bind(carte.id),
+      env.DB.prepare("DELETE FROM score_notifications WHERE carte_id = ?").bind(carte.id),
+      env.DB.prepare("DELETE FROM liens WHERE carte_id = ?").bind(carte.id),
+      env.DB.prepare("DELETE FROM push_subscriptions WHERE carte_id = ?").bind(carte.id),
+      env.DB.prepare("DELETE FROM badges_obtenus WHERE carte_id = ?").bind(carte.id),
+      env.DB.prepare("DELETE FROM recompenses WHERE carte_id = ?").bind(carte.id),
+      env.DB.prepare("DELETE FROM cartes WHERE id = ?").bind(carte.id),
+    ]);
+    console.log(JSON.stringify({ event: "profil_efface", carte: carte.id }));
+    return json({ ok: true });
+  },
+
+  // NOUVEAU : le Setup vérifie que ses profils existent encore (supprimés depuis le téléphone ?).
+  // Réponse : {ok, existe} ; « existe: false » = le code ne correspond plus à aucun profil.
+  async "POST /api/carte/existe"(req, env) {
+    const carte = await carteDe(env, req);
+    return json({ ok: true, existe: !!carte && carte.pseudo !== "Joueur supprimé" });
+  },
+
   async "POST /api/carte/pseudo"(req, env) {
     const carte = await carteDe(env, req);
     if (!carte) return erreur("carte_requise", 401);
