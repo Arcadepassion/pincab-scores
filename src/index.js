@@ -303,8 +303,11 @@ async function raisonSuspect(env, d) {
 // de sa table). Si un autre joueur bat ce score sur la table, il prend la place sur le podium.
 // Succès de la période : le joueur qui a marqué le plus de points pendant la période (record en ligne = 3 points,
 // entrée dans le Top 3 = 1 point ; à égalité : le plus de scores envoyés). Le gagnant d'une période terminée
-// garde la récompense pour toujours (table recompenses). Périodes à l'heure de Paris.
+// garde la récompense pour toujours (table recompenses), à condition d'avoir atteint l'objectif de la période
+// (OBJECTIFS) : sinon personne ne gagne. Périodes à l'heure de Paris.
 const TYPES_PERIODE = ["jour", "semaine", "mois", "annee"];
+// CORRECTIF : un objectif minimum par période ; si personne ne l'atteint, personne ne gagne le succès
+const OBJECTIFS = { jour: 3, semaine: 10, mois: 30, annee: 150 };   // points (record = 3, Top 3 = 1)
 let tableRecompensesPrete = false;
 async function assurerTableRecompenses(env) {
   if (tableRecompensesPrete) return;
@@ -366,7 +369,7 @@ async function championPeriode(env, debut, fin) {
      SELECT c.id AS carte_id, c.pseudo, c.initiales, COALESCE(ev.points, 0) AS points,
             COALESCE(ev.records, 0) AS records, COALESCE(ev.top3, 0) AS top3, COALESCE(sc.scores, 0) AS scores
        FROM cartes c LEFT JOIN ev ON ev.carte_id = c.id LEFT JOIN sc ON sc.carte_id = c.id
-      WHERE (ev.carte_id IS NOT NULL OR sc.carte_id IS NOT NULL) AND c.pseudo <> 'Joueur supprimé'
+      WHERE ev.carte_id IS NOT NULL AND c.pseudo <> 'Joueur supprimé'
       ORDER BY points DESC, scores DESC, COALESCE(ev.premier, 9e15) ASC LIMIT 1`)
     .bind(debut, fin, a, b).first();
   return r || null;
@@ -384,10 +387,13 @@ async function attribuerRecompenses(env) {
   const deja = await env.DB.prepare(`SELECT type || '|' || periode AS k FROM recompenses WHERE type || '|' || periode IN (${marques})`)
     .bind(...cles).all();
   const faits = new Set((deja.results || []).map((x) => x.k));
+  // CORRECTIF : retire les succès donnés sans atteindre l'objectif (première version)
+  await env.DB.batch(TYPES_PERIODE.map((type) =>
+    env.DB.prepare("DELETE FROM recompenses WHERE type = ? AND points < ?").bind(type, OBJECTIFS[type])));
   for (const [type, x] of aFaire) {
     if (faits.has(type + "|" + x.cle)) continue;
     const c = await championPeriode(env, x.debut, x.fin);
-    if (!c) continue;
+    if (!c || c.points < OBJECTIFS[type]) continue;
     await env.DB.prepare(
       `INSERT OR IGNORE INTO recompenses (type, periode, carte_id, points, records, top3, scores, cree)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
@@ -443,7 +449,7 @@ const API = {
            FROM recompenses r JOIN cartes c ON c.id = r.carte_id
           WHERE r.type = ? AND r.periode = ? AND c.pseudo <> 'Joueur supprimé'`).bind(type, precedente.cle).first();
       champions[type] = { en_tete: await championPeriode(env, actuelle.debut, actuelle.fin), precedent: gagnant || null,
-                          fin: new Date(actuelle.fin).toISOString() };
+                          objectif: OBJECTIFS[type], fin: new Date(actuelle.fin).toISOString() };
     }
     return json({ ok: true, podium: await podium(env), champions });
   },
