@@ -732,17 +732,50 @@ const API = {
               (SELECT COALESCE(SUM(s.duree), 0) FROM sessions_pincab s JOIN pincabs p ON p.id = s.pincab_id
                 WHERE p.bloque = 0) AS temps_jeu`).first();
     const tempsTables = await env.DB.prepare(
-      `SELECT s.table_nom, COALESCE(SUM(s.duree), 0) AS temps_jeu, COUNT(*) AS parties
+      `SELECT s.table_nom,
+              (SELECT s2.table_cle FROM scores s2 JOIN pincabs p2 ON p2.id = s2.pincab_id
+                WHERE lower(trim(s2.table_nom)) = lower(trim(s.table_nom)) AND p2.bloque = 0
+                ORDER BY s2.ajoute DESC LIMIT 1) AS table_cle,
+              COALESCE(SUM(s.duree), 0) AS temps_jeu, COUNT(*) AS parties
          FROM sessions_pincab s JOIN pincabs p ON p.id = s.pincab_id
         WHERE p.bloque = 0 AND trim(s.table_nom) <> ''
         GROUP BY lower(trim(s.table_nom)) ORDER BY temps_jeu DESC, s.table_nom COLLATE NOCASE LIMIT 100`).all();
+    const joueursTables = await env.DB.prepare(
+      `WITH scores_joueurs AS (
+         SELECT lower(trim(s.table_nom)) AS table_norm, c.id AS carte_id,
+                CASE WHEN c.pseudo = 'Joueur supprimé' THEN 'Anonyme' ELSE c.pseudo END AS pseudo,
+                CASE WHEN c.pseudo = 'Joueur supprimé' THEN '' ELSE s.initiales END AS initiales,
+                s.score, ROW_NUMBER() OVER (
+                  PARTITION BY lower(trim(s.table_nom)), c.id ORDER BY s.score DESC, s.ajoute DESC, s.id DESC
+                ) AS meilleur_numero
+           FROM scores s JOIN cartes c ON c.id = s.carte_id JOIN pincabs p ON p.id = s.pincab_id
+          WHERE p.bloque = 0 AND trim(s.table_nom) <> ''
+       ), joueurs_classes AS (
+         SELECT table_norm, pseudo, initiales,
+                ROW_NUMBER() OVER (PARTITION BY table_norm ORDER BY score DESC, pseudo COLLATE NOCASE) AS numero,
+                COUNT(*) OVER (PARTITION BY table_norm) AS total
+           FROM scores_joueurs WHERE meilleur_numero = 1
+       )
+       SELECT table_norm, pseudo, initiales, total FROM joueurs_classes WHERE numero <= 5`).all();
+    const joueursParTable = new Map();
+    for (const j of joueursTables.results || []) {
+      const cleTable = j.table_norm;
+      if (!joueursParTable.has(cleTable)) joueursParTable.set(cleTable, { joueurs: [], total: Number(j.total) || 0 });
+      joueursParTable.get(cleTable).joueurs.push({ pseudo: j.pseudo, initiales: j.initiales || "" });
+    }
     const r = await env.DB.prepare(
       `SELECT s.table_cle, s.table_nom, s.systeme, s.score, s.duree_partie, s.initiales, s.ajoute, p.nom AS pincab
          FROM scores s JOIN pincabs p ON p.id = s.pincab_id
         WHERE p.bloque = 0 ORDER BY s.ajoute DESC LIMIT 20`).all();
     const derniers = [];
     for (const s of r.results || []) derniers.push({ ...s, place: (await rangs(env, s.table_cle, "", s.score)).tous });
-    return json({ ok: true, stats, temps_tables: tempsTables.results || [], derniers });
+    const tempsAvecJoueurs = (tempsTables.results || []).map((table) => {
+      const nomNormalise = String(table.table_nom || "").trim().replace(/[A-Z]/g, (c) => c.toLowerCase());
+      const infos = joueursParTable.get(nomNormalise) ||
+        { joueurs: [], total: 0 };
+      return { ...table, joueurs: infos.joueurs, nb_joueurs_identifies: infos.total };
+    });
+    return json({ ok: true, stats, temps_tables: tempsAvecJoueurs, derniers });
   },
 
   async "GET /api/recherche"(req, env, url) {

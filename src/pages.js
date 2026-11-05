@@ -168,6 +168,7 @@ var TEXTES = {
     realisations: "SUCCÈS", aucun_succes: "Continue à jouer pour débloquer tes premiers succès.",
     voir_joueurs: "Voir les joueurs et leurs succès", meilleur_score: "Meilleur score", tables_jouees: "Tables jouées",
     temps_cumule: "Temps de jeu cumulé sur cette table", duree_partie: "Durée de la partie :", secondes: "s",
+    joueurs_avec_score: "Joueurs avec un score en ligne", aucun_joueur_identifie: "Aucun joueur identifié par un score partagé",
     push_titre: "Alertes de gros scores", push_aide: "Reçois une notification lorsqu’un joueur établit un record en ligne ou entre dans le Top 3.",
     push_activer: "Activer les notifications sur ce téléphone", push_desactiver: "Désactiver les notifications sur ce téléphone",
     push_active: "Les notifications sont activées sur ce téléphone.", push_inactive: "Les notifications ne sont pas activées sur ce téléphone.",
@@ -230,6 +231,7 @@ var TEXTES = {
     realisations: "ACHIEVEMENTS", aucun_succes: "Keep playing to unlock your first achievements.",
     voir_joueurs: "See players and achievements", meilleur_score: "Best score", tables_jouees: "Tables played",
     temps_cumule: "Total play time on this table", duree_partie: "Game duration:", secondes: "sec",
+    joueurs_avec_score: "Players with an online score", aucun_joueur_identifie: "No player identified by a shared score",
     push_titre: "High-score alerts", push_aide: "Get notified when a player sets a new online record or reaches the Top 3.",
     push_activer: "Enable notifications on this phone", push_desactiver: "Disable notifications on this phone",
     push_active: "Notifications are enabled on this phone.", push_inactive: "Notifications are not enabled on this phone.",
@@ -437,9 +439,13 @@ function pageAccueil() {
       derniers.length ? el("div", { class: "liste" }, derniers) : el("div", { class: "vide" }, T.aucun),
       el("div", { class: "section" }, T.temps_par_table),
       (r.temps_tables || []).length ? el("div", { class: "liste" }, (r.temps_tables || []).map(function (tb) {
-        return el("div", { class: "ligne" }, wheel(tb.table_nom),
+        var joueurs = (tb.joueurs || []).map(function (j) { return (j.initiales ? j.initiales + " " : "") + j.pseudo; });
+        if (Number(tb.nb_joueurs_identifies || 0) > joueurs.length)
+          joueurs.push("+ " + (Number(tb.nb_joueurs_identifies) - joueurs.length));
+        return el("a", { class: "ligne", href: tb.table_cle ? "/table?cle=" + encodeURIComponent(tb.table_cle) : null }, wheel(tb.table_nom),
           el("div", { class: "milieu" }, el("b", {}, tb.table_nom),
-            el("span", { class: "petit" }, T.temps_cumule)),
+            el("span", { class: "petit" }, T.temps_cumule),
+            el("span", { class: "petit" }, T.joueurs_avec_score + " : " + (joueurs.join(", ") || T.aucun_joueur_identifie))),
           el("div", { class: "droite" }, dureeTexte(tb.temps_jeu)));
       })) : el("div", { class: "vide" }, T.aucun),
       el("div", { class: "pied" }, T.donnees_qr));
