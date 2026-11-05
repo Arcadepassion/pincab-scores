@@ -35,12 +35,13 @@ a{color:var(--cyan)}a:hover{color:var(--cyan2)}
 .badge-case{display:flex;flex-direction:column;align-items:center;text-align:center;gap:2px}
 .badge-case b{font-size:12px;line-height:1.2}.badge-case>span:last-child{font-size:11px;color:var(--cyan2);font-weight:800}
 .badge-case.verrou b{color:var(--gris)}.badge-case.verrou>span:last-child{color:var(--gris);font-weight:600}
-.badge-img{width:84px;height:84px;display:block}.badge-case .m-img{margin-bottom:30px}
+.badge-img{width:84px;height:84px;display:block}.badge-case .m-img{margin-bottom:8px}
+.m-img.badge-m>.m-reflet{margin-top:var(--remonte,0)}
 .badge-img.verrou{filter:grayscale(1) brightness(.45)}.m-img>.m-reflet.verrou{filter:grayscale(1) brightness(.45)}
 .petits-badges{display:flex;flex-wrap:wrap;gap:4px 8px;margin-top:6px;align-items:flex-start}
 .petit-badge{display:inline-flex;align-items:flex-start;gap:2px;font-size:11px;font-weight:800;color:var(--or)}
 .explication-badge.verrou .petit{color:var(--gris)}.etat-badge{font-size:20px;color:var(--gris)}.etat-badge.gagne{font-family:Anton,Impact,sans-serif;font-size:22px;color:#FFE27A}
-.badge-gauche{flex:0 0 auto;align-self:flex-start}.badge-gauche .badge-img{width:64px;height:64px}.badge-gauche .m-img{margin-bottom:22px}
+.badge-gauche{flex:0 0 auto;align-self:flex-start}.badge-gauche .badge-img{width:64px;height:64px}.badge-gauche .m-img{margin-bottom:12px}
 .son-bouton{width:40px;min-width:40px;height:40px;min-height:40px;padding:0;border:1px solid var(--bord2);border-radius:50%;background:var(--carte2);font-size:18px;line-height:1}
 .banniere-badge{position:fixed;left:50%;top:10px;z-index:190;display:flex;align-items:center;gap:12px;width:min(92vw,430px);
 padding:10px 14px;border-radius:16px;background:rgba(13,20,48,.94);border:2px solid #FFC83D;cursor:pointer;
@@ -63,7 +64,7 @@ background:repeating-conic-gradient(from 0deg,rgba(255,215,90,.22) 0 8deg,rgba(2
 .celeb-titre{font-family:Anton,Impact,sans-serif;font-size:34px;letter-spacing:1px;color:#FFE27A;
 text-shadow:0 0 18px rgba(255,200,61,.8),0 0 40px rgba(255,61,240,.55)}
 .celeb-badge-img{width:190px;height:190px;display:block;filter:drop-shadow(0 0 22px rgba(255,61,240,.55)) drop-shadow(0 0 40px rgba(34,211,238,.35))}
-.celeb-badge .m-img{margin-bottom:60px}.celeb-badge .m-reflet{filter:none}
+.celeb-badge .m-img{margin-bottom:40px}.celeb-badge .m-reflet{filter:none}
 .celeb-nom{font-family:Anton,Impact,sans-serif;font-size:26px;color:#fff;letter-spacing:.5px}
 .celeb-qui{font-weight:800;color:var(--cyan2)}.celeb-fermer{margin-top:12px;font-size:13px;color:#8F9CC8}
 @media (prefers-reduced-motion:no-preference){.celeb.joue .celeb-rayons{animation:celeb-tourne 14s linear infinite}
@@ -74,7 +75,7 @@ text-shadow:0 0 18px rgba(255,200,61,.8),0 0 40px rgba(255,61,240,.55)}
 @keyframes celeb-tourne{to{transform:rotate(360deg)}}
 @keyframes celeb-titre{0%{transform:scale(2.2);opacity:0}100%{transform:scale(1);opacity:1}}
 @keyframes celeb-confetti{0%{opacity:1;transform:translate(0,0) rotate(0)}85%{opacity:1}100%{opacity:0;transform:translate(var(--x),var(--y)) rotate(var(--r))}}}
-.badge-img.mini{width:36px;height:36px}.petit-badge .m-img{margin-bottom:12px}
+.badge-img.mini{width:36px;height:36px}.petit-badge .m-img{margin-bottom:7px}
 .badge.recompense{padding:4px 10px;font-size:12px}
 .badge.r-jour{background:rgba(255,226,122,.14);color:#FFE27A}.badge.r-semaine{background:rgba(103,232,249,.14);color:#67E8F9}
 .badge.r-mois{background:rgba(255,61,166,.16);color:#FF7AC6}.badge.r-annee{background:rgba(124,92,255,.2);color:#B9A8FF}
@@ -2082,7 +2083,7 @@ function celebrationSuivante() {
     el("div", { class: "celeb-confettis", "aria-hidden": "true" }, confettis),
     el("div", { class: "celeb-boite" },
       mt(el("div", { class: "celeb-titre" }, titre)),
-      el("div", { class: "celeb-badge" }, mi(el("img", { src: "/images/badges/" + b.cle + ".svg", alt: "", class: "celeb-badge-img" }))),
+      el("div", { class: "celeb-badge" }, refletBadge(mi(el("img", { src: "/images/badges/" + b.cle + ".svg", alt: "", class: "celeb-badge-img" })), b.cle)),
       el("b", { class: "celeb-nom" }, T["succes_" + b.cle] || b.cle),
       el("span", { class: "celeb-qui" }, qui),
       b.pincab && !b.moi ? el("span", { class: "petit" }, t("badge_pincab", b.pincab)) : null,
@@ -2556,9 +2557,18 @@ var MEDAILLES = ["#FFE27A", "#D7DEE8", "#E39A5B"];
 var PERIODES = ["jour", "semaine", "mois", "annee"];
 // NOUVEAU : badges (images en relief animées, avec leur reflet en miroir) ; grisés tant qu'ils ne sont pas gagnés
 var BADGES_REALISATIONS = ["premier_score", "cinq_tables", "dix_tables", "premier_podium", "premier_record", "cent_scores"];
+// CORRECTIF : reflet collé au bas du dessin de chaque badge (comme pour les scores) : chaque image a un
+// espace vide différent sous le dessin, le reflet est remonté d'autant (en % de la taille du badge)
+var REMONTE_BADGE = { annee: 39, cent_scores: 55, cinq_tables: 29, dix_tables: 30, jour: 26, mois: 33,
+                      premier_podium: 26, premier_record: 28, premier_score: 19, semaine: 44 };
+function refletBadge(enveloppe, cle) {
+  enveloppe.classList.add("badge-m");
+  enveloppe.style.setProperty("--remonte", "-" + (REMONTE_BADGE[cle] || 0) + "%");
+  return enveloppe;
+}
 function imageBadge(cle, gagne, classe) {
-  return mi(el("img", { src: "/images/badges/" + cle + (gagne ? "" : "-verrou") + ".svg", alt: "", "aria-hidden": "true",
-                        class: "badge-img" + (gagne ? "" : " verrou") + (classe ? " " + classe : ""), loading: "lazy" }));
+  return refletBadge(mi(el("img", { src: "/images/badges/" + cle + (gagne ? "" : "-verrou") + ".svg", alt: "", "aria-hidden": "true",
+                        class: "badge-img" + (gagne ? "" : " verrou") + (classe ? " " + classe : ""), loading: "lazy" })), cle);
 }
 function grilleBadges(realisations, rec) {
   var obtenus = {};
