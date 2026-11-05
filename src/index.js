@@ -298,8 +298,156 @@ async function raisonSuspect(env, d) {
   return "";
 }
 
+// ------------------------------------------------------------------ NOUVEAU : podium et succès du jour / semaine / mois / année
+// Podium : les 3 joueurs qui détiennent les plus gros records de table (le plus gros score qui est encore n° 1
+// de sa table). Si un autre joueur bat ce score sur la table, il prend la place sur le podium.
+// Succès de la période : le joueur qui a marqué le plus de points pendant la période (record en ligne = 3 points,
+// entrée dans le Top 3 = 1 point ; à égalité : le plus de scores envoyés). Le gagnant d'une période terminée
+// garde la récompense pour toujours (table recompenses). Périodes à l'heure de Paris.
+const TYPES_PERIODE = ["jour", "semaine", "mois", "annee"];
+let tableRecompensesPrete = false;
+async function assurerTableRecompenses(env) {
+  if (tableRecompensesPrete) return;
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS recompenses (
+       type TEXT NOT NULL, periode TEXT NOT NULL, carte_id TEXT NOT NULL, points INTEGER NOT NULL DEFAULT 0,
+       records INTEGER NOT NULL DEFAULT 0, top3 INTEGER NOT NULL DEFAULT 0, scores INTEGER NOT NULL DEFAULT 0,
+       cree TEXT NOT NULL, PRIMARY KEY (type, periode))`).run();
+  tableRecompensesPrete = true;
+}
+const FORMAT_PARIS = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit",
+  day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
+function partiesParis(ms) {
+  const o = {};
+  for (const x of FORMAT_PARIS.formatToParts(new Date(ms))) o[x.type] = Number(x.value);
+  return o;
+}
+function decalageParis(ms) {
+  const o = partiesParis(ms);
+  return Date.UTC(o.year, o.month - 1, o.day, o.hour, o.minute, o.second) - Math.floor(ms / 1000) * 1000;
+}
+function minuitParis(a, m, j) {            // ms UTC du début du jour a-m-j à Paris (m : 1..12, débordements acceptés)
+  const brut = Date.UTC(a, m - 1, j);
+  let t = brut - decalageParis(brut);
+  t = brut - decalageParis(t);
+  return t;
+}
+function periode(type, ms) {
+  const o = partiesParis(ms);
+  const deuxChiffres = (n) => String(n).padStart(2, "0");
+  if (type === "jour") {
+    return { cle: `${o.year}-${deuxChiffres(o.month)}-${deuxChiffres(o.day)}`,
+             debut: minuitParis(o.year, o.month, o.day), fin: minuitParis(o.year, o.month, o.day + 1) };
+  }
+  if (type === "semaine") {
+    const jourSemaine = (new Date(Date.UTC(o.year, o.month - 1, o.day)).getUTCDay() + 6) % 7;   // lundi = 0
+    const lundi = new Date(Date.UTC(o.year, o.month - 1, o.day - jourSemaine));
+    const a = lundi.getUTCFullYear(), m = lundi.getUTCMonth() + 1, j = lundi.getUTCDate();
+    return { cle: `S${a}-${deuxChiffres(m)}-${deuxChiffres(j)}`, debut: minuitParis(a, m, j), fin: minuitParis(a, m, j + 7) };
+  }
+  if (type === "mois") {
+    return { cle: `${o.year}-${deuxChiffres(o.month)}`, debut: minuitParis(o.year, o.month, 1),
+             fin: minuitParis(o.year, o.month + 1, 1) };
+  }
+  return { cle: `${o.year}`, debut: minuitParis(o.year, 1, 1), fin: minuitParis(o.year + 1, 1, 1) };
+}
+async function championPeriode(env, debut, fin) {
+  const a = new Date(debut).toISOString(), b = new Date(fin).toISOString();
+  const r = await env.DB.prepare(
+    `WITH ev AS (
+       SELECT n.carte_id, SUM(CASE WHEN n.place = 1 THEN 3 ELSE 1 END) AS points,
+              SUM(CASE WHEN n.place = 1 THEN 1 ELSE 0 END) AS records,
+              SUM(CASE WHEN n.place > 1 THEN 1 ELSE 0 END) AS top3, MIN(n.cree_ms) AS premier
+         FROM score_notifications n JOIN pincabs p ON p.id = n.pincab_id
+        WHERE n.cree_ms >= ?1 AND n.cree_ms < ?2 AND p.bloque = 0 GROUP BY n.carte_id),
+     sc AS (
+       SELECT s.carte_id, COUNT(*) AS scores FROM scores s JOIN pincabs p ON p.id = s.pincab_id
+        WHERE s.ajoute >= ?3 AND s.ajoute < ?4 AND p.bloque = 0 GROUP BY s.carte_id)
+     SELECT c.id AS carte_id, c.pseudo, c.initiales, COALESCE(ev.points, 0) AS points,
+            COALESCE(ev.records, 0) AS records, COALESCE(ev.top3, 0) AS top3, COALESCE(sc.scores, 0) AS scores
+       FROM cartes c LEFT JOIN ev ON ev.carte_id = c.id LEFT JOIN sc ON sc.carte_id = c.id
+      WHERE (ev.carte_id IS NOT NULL OR sc.carte_id IS NOT NULL) AND c.pseudo <> 'Joueur supprimé'
+      ORDER BY points DESC, scores DESC, COALESCE(ev.premier, 9e15) ASC LIMIT 1`)
+    .bind(debut, fin, a, b).first();
+  return r || null;
+}
+// Récompense les gagnants des périodes terminées (les 7 derniers jours, la semaine, le mois et l'année d'avant).
+async function attribuerRecompenses(env) {
+  await assurerTableRecompenses(env);
+  const maintenantMs = Date.now();
+  const aFaire = [];
+  let p = periode("jour", maintenantMs);
+  for (let i = 0; i < 7; i++) { p = periode("jour", p.debut - 1); aFaire.push(["jour", p]); }
+  for (const type of ["semaine", "mois", "annee"]) aFaire.push([type, periode(type, periode(type, maintenantMs).debut - 1)]);
+  const cles = aFaire.map(([type, x]) => type + "|" + x.cle);
+  const marques = cles.map(() => "?").join(",");
+  const deja = await env.DB.prepare(`SELECT type || '|' || periode AS k FROM recompenses WHERE type || '|' || periode IN (${marques})`)
+    .bind(...cles).all();
+  const faits = new Set((deja.results || []).map((x) => x.k));
+  for (const [type, x] of aFaire) {
+    if (faits.has(type + "|" + x.cle)) continue;
+    const c = await championPeriode(env, x.debut, x.fin);
+    if (!c) continue;
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO recompenses (type, periode, carte_id, points, records, top3, scores, cree)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(type, x.cle, c.carte_id, c.points, c.records, c.top3, c.scores, maintenant()).run();
+  }
+}
+async function recompensesDe(env, carteId) {
+  await assurerTableRecompenses(env);
+  const r = await env.DB.prepare("SELECT type, COUNT(*) AS n FROM recompenses WHERE carte_id = ? GROUP BY type")
+    .bind(carteId).all();
+  const o = { jour: 0, semaine: 0, mois: 0, annee: 0 };
+  for (const x of r.results || []) o[x.type] = Number(x.n) || 0;
+  return o;
+}
+async function podium(env) {
+  const r = await env.DB.prepare(`${MEILLEURS_SQL},
+      rg AS (SELECT m.table_cle, m.carte_id, m.sc,
+                    (SELECT COUNT(*) FROM m m2 WHERE m2.table_cle = m.table_cle AND m2.sc > m.sc) AS devant FROM m)
+    SELECT c.id AS carte_id, c.pseudo, c.initiales,
+           MAX(CASE WHEN rg.devant = 0 THEN rg.sc END) AS record_score,
+           MAX(rg.sc) AS meilleur,
+           SUM(CASE WHEN rg.devant = 0 THEN 1 ELSE 0 END) AS records,
+           SUM(CASE WHEN rg.devant < 3 THEN 1 ELSE 0 END) AS podiums,
+           COUNT(*) AS tables
+      FROM rg JOIN cartes c ON c.id = rg.carte_id
+     WHERE c.pseudo <> 'Joueur supprimé'
+     GROUP BY c.id
+     ORDER BY (record_score IS NULL), record_score DESC, meilleur DESC LIMIT 3`).all();
+  const liste = [];
+  for (const x of r.results || []) {
+    const score = x.record_score || x.meilleur;
+    const t = await env.DB.prepare(
+      "SELECT table_nom, table_cle FROM scores WHERE carte_id = ? AND score = ? ORDER BY ajoute DESC LIMIT 1")
+      .bind(x.carte_id, score).first();
+    liste.push({ ...x, table_nom: t?.table_nom || "", table_cle: t?.table_cle || "",
+                 recompenses: await recompensesDe(env, x.carte_id) });
+  }
+  return liste;
+}
+
 // ------------------------------------------------------------------ API
 const API = {
+  // NOUVEAU : podium des 3 meilleurs joueurs et champions du jour / de la semaine / du mois / de l'année
+  async "GET /api/podium"(req, env) {
+    await attribuerRecompenses(env);
+    const maintenantMs = Date.now();
+    const champions = {};
+    for (const type of TYPES_PERIODE) {
+      const actuelle = periode(type, maintenantMs);
+      const precedente = periode(type, actuelle.debut - 1);
+      const gagnant = await env.DB.prepare(
+        `SELECT r.points, r.records, r.top3, r.scores, c.id AS carte_id, c.pseudo, c.initiales
+           FROM recompenses r JOIN cartes c ON c.id = r.carte_id
+          WHERE r.type = ? AND r.periode = ? AND c.pseudo <> 'Joueur supprimé'`).bind(type, precedente.cle).first();
+      champions[type] = { en_tete: await championPeriode(env, actuelle.debut, actuelle.fin), precedent: gagnant || null,
+                          fin: new Date(actuelle.fin).toISOString() };
+    }
+    return json({ ok: true, podium: await podium(env), champions });
+  },
+
   // Flux des records/podiums récents, lu périodiquement par les frontends connectés.
   async "GET /api/notifications"(req, env, url) {
     const depuis = Number(url.searchParams.get("depuis") || 0);
@@ -408,7 +556,8 @@ const API = {
     const scoresN = Number(stats?.scores) || 0, tablesN = Number(stats?.tables) || 0;
     return json({ ok: true, pseudo: carte.pseudo, initiales: carte.initiales, tables: r.results || [],
       stats: { scores: scoresN, tables: tablesN, podiums: Number(podiums?.n) || 0, records: Number(records?.n) || 0 },
-      realisations: realisationsPour(scoresN, tablesN, Number(records?.n) || 0, Number(podiums?.n) || 0) });
+      realisations: realisationsPour(scoresN, tablesN, Number(records?.n) || 0, Number(podiums?.n) || 0),
+      recompenses: await recompensesDe(env, carte.id) });   // NOUVEAU
   },
 
   // Le pincab s'active une fois : il reçoit son identifiant et sa clé de signature.
@@ -710,7 +859,7 @@ const API = {
       scores: liste, pincabs: pincabs.results || [],
       stats: { records: places?.records || 0, podiums: places?.podiums || 0,
                scores: stats?.scores || 0, tables: stats?.tables || 0 },
-      realisations,
+      realisations, recompenses: await recompensesDe(env, carte.id),   // NOUVEAU : succès du jour / semaine / mois / année
     });
   },
 

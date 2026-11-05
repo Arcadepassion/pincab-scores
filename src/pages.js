@@ -30,6 +30,14 @@ main{max-width:520px;margin:0 auto;padding:20px 16px 40px;display:flex;flex-dire
 a{color:var(--cyan)}a:hover{color:var(--cyan2)}
 .entete{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .entete-droite{display:flex;align-items:center;gap:8px}
+.badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}.badges:empty{display:none}
+.badge.recompense{padding:4px 10px;font-size:12px}
+.badge.r-jour{background:rgba(255,226,122,.14);color:#FFE27A}.badge.r-semaine{background:rgba(103,232,249,.14);color:#67E8F9}
+.badge.r-mois{background:rgba(255,61,166,.16);color:#FF7AC6}.badge.r-annee{background:rgba(124,92,255,.2);color:#B9A8FF}
+.podium-ligne .milieu b{font-size:16px;white-space:normal;overflow:visible}
+.logo{min-width:0;flex:0 1 auto;overflow:hidden;text-overflow:ellipsis}.entete-droite,.entete .retour{flex-shrink:0}
+@media (max-width:440px){.logo{font-size:19px}.logo img{height:26px}.entete:has(.retour) .logo-texte{display:none}}
+a.droite{text-decoration:none}
 .logo,.pastille{white-space:nowrap}
 @media (max-width:440px){.pastille-texte.long{display:none}.entete .pastille{padding:0 10px!important}}
 .langue{position:relative}
@@ -1717,6 +1725,8 @@ var TEXTES = {
   }
  }
 };
+// NOUVEAU : textes du podium et des succès par période
+(function (n) { Object.keys(n).forEach(function (l) { Object.assign(TEXTES[l], n[l]); }); })({"fr": {"podium_titre": "PODIUM", "podium_aide": "Les 3 joueurs qui détiennent les plus gros records de table, tous pincabs confondus. Battez un de ces scores sur sa table pour prendre la place.", "top3_court": "Top 3", "record_de_table": "Record de table", "tables_top3": "Tables dans le Top 3", "succes_jour": "Succès du jour", "succes_semaine": "Succès de la semaine", "succes_mois": "Succès du mois", "succes_annee": "Succès de l'année", "succes_titre": "SUCCÈS DE LA PÉRIODE", "succes_aide": "Record en ligne = 3 points, entrée dans le Top 3 = 1 point. Le meilleur joueur de chaque période gagne le succès pour toujours.", "en_tete": "En tête", "personne": "personne pour l'instant", "dernier_jour": "Gagnant d'hier", "dernier_semaine": "Gagnant de la semaine dernière", "dernier_mois": "Gagnant du mois dernier", "dernier_annee": "Gagnant de l'année dernière", "points": "{} pts"}, "en": {"podium_titre": "PODIUM", "podium_aide": "The 3 players holding the biggest table records across all pincabs. Beat one of these scores on its table to take their place.", "top3_court": "Top 3", "record_de_table": "Table record", "tables_top3": "Tables in the Top 3", "succes_jour": "Achievement of the day", "succes_semaine": "Achievement of the week", "succes_mois": "Achievement of the month", "succes_annee": "Achievement of the year", "succes_titre": "PERIOD ACHIEVEMENTS", "succes_aide": "Online record = 3 points, entering the Top 3 = 1 point. The best player of each period wins the achievement forever.", "en_tete": "Leading", "personne": "nobody yet", "dernier_jour": "Yesterday's winner", "dernier_semaine": "Last week's winner", "dernier_mois": "Last month's winner", "dernier_annee": "Last year's winner", "points": "{} pts"}, "es": {"podium_titre": "PODIO", "podium_aide": "Los 3 jugadores con los mayores récords de mesa de todos los pincabs. Supera una de estas puntuaciones en su mesa para ocupar su lugar.", "top3_court": "Top 3", "record_de_table": "Récord de mesa", "tables_top3": "Mesas en el Top 3", "succes_jour": "Logro del día", "succes_semaine": "Logro de la semana", "succes_mois": "Logro del mes", "succes_annee": "Logro del año", "succes_titre": "LOGROS DEL PERIODO", "succes_aide": "Récord en línea = 3 puntos, entrada en el Top 3 = 1 punto. El mejor jugador de cada periodo gana el logro para siempre.", "en_tete": "En cabeza", "personne": "nadie por ahora", "dernier_jour": "Ganador de ayer", "dernier_semaine": "Ganador de la semana pasada", "dernier_mois": "Ganador del mes pasado", "dernier_annee": "Ganador del año pasado", "points": "{} pts"}, "it": {"podium_titre": "PODIO", "podium_aide": "I 3 giocatori con i record di tavolo più alti su tutti i pincab. Batti uno di questi punteggi sul suo tavolo per prenderne il posto.", "top3_court": "Top 3", "record_de_table": "Record del tavolo", "tables_top3": "Tavoli nella Top 3", "succes_jour": "Obiettivo del giorno", "succes_semaine": "Obiettivo della settimana", "succes_mois": "Obiettivo del mese", "succes_annee": "Obiettivo dell'anno", "succes_titre": "OBIETTIVI DEL PERIODO", "succes_aide": "Record online = 3 punti, ingresso nella Top 3 = 1 punto. Il miglior giocatore di ogni periodo vince l'obiettivo per sempre.", "en_tete": "In testa", "personne": "nessuno per ora", "dernier_jour": "Vincitore di ieri", "dernier_semaine": "Vincitore della settimana scorsa", "dernier_mois": "Vincitore del mese scorso", "dernier_annee": "Vincitore dell'anno scorso", "points": "{} pt"}, "de": {"podium_titre": "PODEST", "podium_aide": "Die 3 Spieler mit den höchsten Tischrekorden aller Pincabs. Schlage einen dieser Punktestände auf seinem Tisch, um den Platz einzunehmen.", "top3_court": "Top 3", "record_de_table": "Tischrekord", "tables_top3": "Tische in den Top 3", "succes_jour": "Erfolg des Tages", "succes_semaine": "Erfolg der Woche", "succes_mois": "Erfolg des Monats", "succes_annee": "Erfolg des Jahres", "succes_titre": "ERFOLGE DES ZEITRAUMS", "succes_aide": "Online-Rekord = 3 Punkte, Einzug in die Top 3 = 1 Punkt. Der beste Spieler jedes Zeitraums gewinnt den Erfolg für immer.", "en_tete": "Vorne", "personne": "noch niemand", "dernier_jour": "Gewinner von gestern", "dernier_semaine": "Gewinner der letzten Woche", "dernier_mois": "Gewinner des letzten Monats", "dernier_annee": "Gewinner des letzten Jahres", "points": "{} Pkt."}, "pt": {"podium_titre": "PÓDIO", "podium_aide": "Os 3 jogadores com os maiores recordes de mesa de todos os pincabs. Bate uma destas pontuações na sua mesa para ficares com o lugar.", "top3_court": "Top 3", "record_de_table": "Recorde da mesa", "tables_top3": "Mesas no Top 3", "succes_jour": "Conquista do dia", "succes_semaine": "Conquista da semana", "succes_mois": "Conquista do mês", "succes_annee": "Conquista do ano", "succes_titre": "CONQUISTAS DO PERÍODO", "succes_aide": "Recorde online = 3 pontos, entrada no Top 3 = 1 ponto. O melhor jogador de cada período ganha a conquista para sempre.", "en_tete": "Na frente", "personne": "ninguém por agora", "dernier_jour": "Vencedor de ontem", "dernier_semaine": "Vencedor da semana passada", "dernier_mois": "Vencedor do mês passado", "dernier_annee": "Vencedor do ano passado", "points": "{} pts"}, "ja": {"podium_titre": "表彰台", "podium_aide": "すべての pincab で最も大きなテーブル記録を持つ3人です。そのテーブルでスコアを超えると順位を奪えます。", "top3_court": "トップ3", "record_de_table": "テーブル記録", "tables_top3": "トップ3のテーブル", "succes_jour": "今日の実績", "succes_semaine": "今週の実績", "succes_mois": "今月の実績", "succes_annee": "今年の実績", "succes_titre": "期間の実績", "succes_aide": "オンライン記録 = 3ポイント、トップ3入り = 1ポイント。各期間のベストプレイヤーが実績を永久に獲得します。", "en_tete": "首位", "personne": "まだ誰もいません", "dernier_jour": "昨日の勝者", "dernier_semaine": "先週の勝者", "dernier_mois": "先月の勝者", "dernier_annee": "昨年の勝者", "points": "{} pt"}, "zh": {"podium_titre": "领奖台", "podium_aide": "所有 pincab 中拥有最大单台纪录的 3 位玩家。在对应的台上超过这些分数即可取而代之。", "top3_court": "前 3", "record_de_table": "单台纪录", "tables_top3": "进入前 3 的台", "succes_jour": "今日成就", "succes_semaine": "本周成就", "succes_mois": "本月成就", "succes_annee": "年度成就", "succes_titre": "阶段成就", "succes_aide": "在线纪录 = 3 分,进入前 3 名 = 1 分。每个阶段的最佳玩家将永久获得该成就。", "en_tete": "领先", "personne": "暂时没有", "dernier_jour": "昨日获胜者", "dernier_semaine": "上周获胜者", "dernier_mois": "上月获胜者", "dernier_annee": "去年获胜者", "points": "{} 分"}, "ru": {"podium_titre": "ПЬЕДЕСТАЛ", "podium_aide": "3 игрока с самыми большими рекордами столов среди всех pincab. Побейте один из этих результатов на его столе, чтобы занять место.", "top3_court": "Топ-3", "record_de_table": "Рекорд стола", "tables_top3": "Столы в Топ-3", "succes_jour": "Достижение дня", "succes_semaine": "Достижение недели", "succes_mois": "Достижение месяца", "succes_annee": "Достижение года", "succes_titre": "ДОСТИЖЕНИЯ ПЕРИОДА", "succes_aide": "Онлайн-рекорд = 3 очка, вход в Топ-3 = 1 очко. Лучший игрок каждого периода получает достижение навсегда.", "en_tete": "Лидирует", "personne": "пока никто", "dernier_jour": "Победитель вчерашнего дня", "dernier_semaine": "Победитель прошлой недели", "dernier_mois": "Победитель прошлого месяца", "dernier_annee": "Победитель прошлого года", "points": "{} оч."}, "ar": {"podium_titre": "منصة التتويج", "podium_aide": "اللاعبون الثلاثة أصحاب أكبر الأرقام القياسية للطاولات في كل الـ pincab. تجاوز إحدى هذه النتائج على طاولتها لتأخذ المكان.", "top3_court": "أفضل 3", "record_de_table": "رقم الطاولة القياسي", "tables_top3": "طاولات ضمن أفضل 3", "succes_jour": "إنجاز اليوم", "succes_semaine": "إنجاز الأسبوع", "succes_mois": "إنجاز الشهر", "succes_annee": "إنجاز السنة", "succes_titre": "إنجازات الفترة", "succes_aide": "رقم قياسي عبر الإنترنت = 3 نقاط، دخول أفضل 3 = نقطة واحدة. أفضل لاعب في كل فترة يفوز بالإنجاز إلى الأبد.", "en_tete": "في الصدارة", "personne": "لا أحد حتى الآن", "dernier_jour": "فائز الأمس", "dernier_semaine": "فائز الأسبوع الماضي", "dernier_mois": "فائز الشهر الماضي", "dernier_annee": "فائز السنة الماضية", "points": "{} نقطة"}});
 var LANGUES = [["fr", "Français", "fr"], ["en", "English", "gb"], ["es", "Español", "es"], ["it", "Italiano", "it"],
   ["de", "Deutsch", "de"], ["pt", "Português", "pt"], ["ja", "日本語", "jp"], ["zh", "中文", "cn"],
   ["ru", "Русский", "ru"], ["ar", "العربية", "ar"]];
@@ -1841,7 +1851,7 @@ function entete() {
         if (precedent === location.origin) history.back(); else location.href = "/";
       } }, "←") : null,
     el("a", { class: "logo", href: "/", "aria-label": "PincabOS Scores" },
-      el("img", { src: "/images/logo.png", alt: "PincabOS" }), " SCORES"),
+      el("img", { src: "/images/logo.png", alt: "PincabOS" }), el("span", { class: "logo-texte" }, " SCORES")),
     el("div", { class: "entete-droite" }, choixLangue(),
       el("a", { class: "pastille avec-ico", href: "/carte", "aria-label": T.ma_carte, style: "gap:6px;padding:0 12px 0 8px" },
         el("img", { src: "/images/carte.png", alt: "", "aria-hidden": "true", class: "ico" }),
@@ -1936,6 +1946,7 @@ function pageAccueil() {
         stat("meilleur-score", r.stats.scores, T.scores),
         el("div", { class: "bloc", style: "padding:12px;align-items:center;gap:4px" }, ico("chrono", "moyenne"),
           el("div", { class: "grand or" }, dureeTexte(r.stats.temps_jeu)), el("div", { class: "petit" }, T.temps_jeu))),
+      zonePodium(),   // NOUVEAU : podium + succès du jour / semaine / mois / année
       el("a", { class: "bouton second", href: "/joueurs" }, T.voir_joueurs),
       el("div", { class: "section" }, T.derniers),
       derniers.length ? el("div", { class: "liste" }, derniers) : el("div", { class: "vide" }, T.aucun),
@@ -2128,11 +2139,13 @@ function pageCarte() {
           mt(el("div", { class: "ini" }, r.initiales))),
         el("div", { class: "trois" },
           el("div", {}, mi(ico("trophee", "moyenne")), mt(el("div", { class: "grand", style: "color:#FFE27A" }, String(r.stats.records))), el("div", { class: "petit" }, T.records)),
-          el("div", {}, mi(ico("podium", "moyenne")), mt(el("div", { class: "grand", style: "color:#FFC83D" }, String(r.stats.podiums))), el("div", { class: "petit" }, T.podiums)),
+          el("div", {}, mi(ico("podium", "moyenne")), mt(el("div", { class: "grand", style: "color:#FFC83D" }, String(r.stats.podiums))), el("div", { class: "petit" }, T.tables_top3)),
           el("div", {}, mi(ico("meilleur-score", "moyenne")), mt(el("div", { class: "grand", style: "color:#FFB347" }, String(r.stats.scores))), el("div", { class: "petit" }, T.scores))),
         el("div", { class: "petit avec-ico", style: "justify-content:flex-start;gap:6px" }, mi(ico("table", "petite")), mt(el("span", {}, r.pincabs.length ? T.liee_a + " : " + r.pincabs.map(function (x) { return x.nom; }).join(", ") : T.aucun_pincab))))),
+      zonePodium(),   // NOUVEAU : les 3 meilleurs joueurs de tous les pincabs + succès par période
       formPseudo, blocPush, zoneLiens,
       el("div", { class: "bloc" }, el("b", {}, T.realisations),
+        el("div", { class: "badges" }, badgesRecompenses(r.recompenses)),
         realisations.length ? el("div", {}, realisations) : el("div", { class: "petit" }, T.aucun_succes)),
       el("div", { class: "section" }, T.mes_scores),
       liste.length ? el("div", { class: "liste" }, liste) : el("div", { class: "vide" }, T.aucun),
@@ -2235,6 +2248,59 @@ function pageTable() {
   charger();
 }
 
+// NOUVEAU : podium des 3 meilleurs joueurs (plus gros records de table) et succès par période
+var MEDAILLES = ["#FFE27A", "#D7DEE8", "#E39A5B"];
+var PERIODES = ["jour", "semaine", "mois", "annee"];
+function badgesRecompenses(rec) {
+  return PERIODES.filter(function (p) { return rec && rec[p] > 0; }).map(function (p) {
+    return el("span", { class: "badge recompense r-" + p }, ico("trophee", "petite"), T["succes_" + p] + " ×" + rec[p]);
+  });
+}
+function blocPodium(liste) {
+  var lignes = (liste || []).map(function (j, i) {
+    var details = nombre(j.records || 0) + " " + T.records + " · " + nombre(j.podiums || 0) + " " + T.top3_court +
+                  " · " + nombre(j.tables || 0) + " " + T.tables_jouees;
+    return el("a", { class: "ligne score-rgb podium-ligne", href: "/joueur?id=" + encodeURIComponent(j.carte_id) },
+      el("div", { class: "rang", style: "color:" + MEDAILLES[i] + ";font-size:30px" }, String(i + 1)),
+      el("div", { class: "milieu" },
+        el("b", {}, (j.initiales ? j.initiales + "  " : "") + j.pseudo),
+        el("span", { class: "petit" }, (j.record_score ? T.record_de_table : T.meilleur_score) + " : " + (j.table_nom || "")),
+        el("span", { class: "petit" }, details),
+        el("div", { class: "badges" }, badgesRecompenses(j.recompenses))),
+      el("div", { class: "droite" }, mt(el("span", {}, nombre(j.record_score || j.meilleur || 0)))));
+  });
+  return el("div", { class: "bloc" },
+    el("div", { class: "avec-ico", style: "justify-content:flex-start" }, ico("podium", "moyenne"),
+      el("b", { class: "titre", style: "font-size:20px" }, T.podium_titre)),
+    el("div", { class: "petit" }, T.podium_aide),
+    lignes.length ? el("div", { class: "liste" }, lignes) : el("div", { class: "vide" }, T.aucun));
+}
+function blocChampions(ch) {
+  var lignes = PERIODES.map(function (p) {
+    var c = (ch || {})[p] || {}, e = c.en_tete, g = c.precedent;
+    function qui(x) { return (x.initiales ? x.initiales + " " : "") + x.pseudo; }
+    function detail(x) { return t("points", x.points) + " (" + nombre(x.records) + " " + T.records + ", " + nombre(x.top3) + " " + T.top3_court + ")"; }
+    return el("div", { class: "ligne score-rgb" },
+      el("div", { class: "milieu" },
+        el("b", { class: "or" }, T["succes_" + p]),
+        el("span", { class: "petit" }, T.en_tete + " : " + (e ? qui(e) + " — " + detail(e) : T.personne)),
+        el("span", { class: "petit" }, T["dernier_" + p] + " : " + (g ? qui(g) + " — " + detail(g) : T.personne))),
+      e ? el("a", { class: "droite", href: "/joueur?id=" + encodeURIComponent(e.carte_id) }, mt(el("span", {}, e.initiales || "★"))) : null);
+  });
+  return el("div", { class: "bloc" },
+    el("div", { class: "avec-ico", style: "justify-content:flex-start" }, ico("trophee", "moyenne"),
+      el("b", { class: "titre", style: "font-size:20px" }, T.succes_titre)),
+    el("div", { class: "petit" }, T.succes_aide),
+    el("div", { class: "liste" }, lignes));
+}
+function zonePodium() {
+  var zone = el("div", { class: "liste", style: "gap:14px" });
+  api("GET", "/api/podium").then(function (r) {
+    if (!r.ok) return;
+    ajouter(zone, blocPodium(r.podium), blocChampions(r.champions));
+  });
+  return zone;
+}
 function texteSucces(realisations) {
   return (realisations || []).map(function (r) { return t("succes_" + r.cle); }).filter(function (x) { return x.indexOf("succes_") !== 0; });
 }
@@ -2274,6 +2340,7 @@ function pageJoueur() {
           el("div", {}, el("div", { class: "grand" }, nombre(r.stats.tables)), el("div", { class: "petit" }, T.tables_jouees)),
           el("div", {}, el("div", { class: "grand" }, nombre(r.stats.records)), el("div", { class: "petit" }, T.records))))),
       el("div", { class: "bloc" }, el("b", {}, T.realisations),
+        el("div", { class: "badges" }, badgesRecompenses(r.recompenses)),   // NOUVEAU
         succes.length ? el("div", { class: "liste" }, succes.map(function (s) { return el("span", { class: "badge" }, "🏆 " + s); })) : el("span", { class: "petit" }, T.aucun_succes)),
       el("div", { class: "section" }, T.mes_scores),
       scores.length ? el("div", { class: "liste" }, scores) : el("div", { class: "vide" }, T.aucun));
