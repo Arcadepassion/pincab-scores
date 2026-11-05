@@ -1,1 +1,1 @@
-{"name":"pincab-scores","private":true,"type":"module","scripts":{"dev":"wrangler dev --local","deploy":"wrangler deploy"},"devDependencies":{"wrangler":"^4.156.1"}}
+{"name":"pincab-scores","private":true,"type":"module","scripts":{"dev":"wrangler dev --local","deploy":"wrangler deploy"},"dependencies":{"@mmmike/web-push":"1.5.0"},"devDependencies":{"wrangler":"^4.156.1"}}

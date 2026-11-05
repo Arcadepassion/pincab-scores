@@ -10,6 +10,7 @@
 //  - « Tous les pincabs » ne montre que les pincabs validés par l'administrateur.
 // =====================================================================
 import { PAGE_HTML as PAGE_BRUTE, APP_JS, APP_CSS } from "./pages.js";
+import { isPushServiceEndpoint, sendPushBatch } from "@mmmike/web-push/send";
 
 // CORRECTIF : le code des pages porte une empreinte dans son adresse (/app.js?v=...) : après chaque mise à
 // jour du site, les navigateurs chargent tout de suite la nouvelle version (plus de vieille copie en cache)
@@ -21,6 +22,29 @@ function empreinte(texte) {
 const VERSION_PAGES = empreinte(APP_JS + APP_CSS);
 const PAGE_HTML = PAGE_BRUTE.replace('src="/app.js"', `src="/app.js?v=${VERSION_PAGES}"`)
   .replace('href="/app.css"', `href="/app.css?v=${VERSION_PAGES}"`);
+const MANIFEST = JSON.stringify({ id: "/", name: "PincabOS Scores", short_name: "PincabOS",
+  start_url: "/", scope: "/", display: "standalone", background_color: "#070B1A", theme_color: "#070B1A" });
+const SERVICE_WORKER_JS = `
+"use strict";
+self.addEventListener("push", (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (_) {}
+  event.waitUntil(self.registration.showNotification(data.title || "PincabOS Scores", {
+    body: data.body || "Un nouveau score est entré dans le Top 3.",
+    tag: data.tag || "pincab-high-score", data: { url: data.url || "/" },
+    icon: "/images/carte.png", badge: "/images/carte.png"
+  }));
+});
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = new URL(event.notification.data?.url || "/", self.location.origin);
+  if (url.origin !== self.location.origin) return;
+  event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+    const client = clients.find((c) => new URL(c.url).pathname === url.pathname);
+    return client ? client.focus().then(() => client.navigate(url.href)) : self.clients.openWindow(url.href);
+  }));
+});
+`;
 
 const VERSION_QR = 1;
 const DUREE_LIEN_MAX = 3600;          // s : validité d'un QR « Lier une carte »
@@ -159,6 +183,21 @@ async function rangs(env, tableCle, pincabId, score) {
   return { pincab: (surPincab?.n || 0) + 1, tous: (surTous?.n || 0) + 1 };
 }
 
+async function envoyerPushScores(env, payload) {
+  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return;
+  const r = await env.DB.prepare("SELECT endpoint, p256dh, auth FROM push_subscriptions LIMIT 2000").all();
+  const subs = r.results || [];
+  if (!subs.length) return;
+  const result = await sendPushBatch(subs.map((s) => ({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } })),
+    payload, { publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY,
+      subject: "mailto:arcadepassion42@gmail.com" }, { concurrency: 20, ttl: 3600 });
+  if (result.gone.length) {
+    const reqs = result.gone.map((gone) => env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?").bind(gone.endpoint));
+    for (let i = 0; i < reqs.length; i += 100) await env.DB.batch(reqs.slice(i, i + 100));
+  }
+  if (result.failed.length) console.warn(JSON.stringify({ event: "push_scores_partial_failure", n: result.failed.length }));
+}
+
 // NOUVEAU : nom de pincab déjà utilisé par un autre pincab ?
 async function nomPincabPris(env, nom, saufId) {
   const r = await env.DB.prepare("SELECT 1 FROM pincabs WHERE lower(trim(nom)) = lower(?) AND id <> ?")
@@ -184,6 +223,62 @@ function realisationsPour(scores, tables, records, podiums) {
 
 // ------------------------------------------------------------------ API
 const API = {
+  // Flux des records/podiums récents, lu périodiquement par les frontends connectés.
+  async "GET /api/notifications"(req, env, url) {
+    const depuis = Number(url.searchParams.get("depuis") || 0);
+    const apres = String(url.searchParams.get("apres") || "").slice(0, 80);
+    const pc = String(url.searchParams.get("pc") || "").slice(0, 80);
+    if (!Number.isSafeInteger(depuis) || depuis < 0) return erreur("requete_invalide", 400);
+    const r = await env.DB.prepare(
+      `SELECT n.score_id AS id, n.cree_ms, n.table_cle, n.table_nom, n.systeme, n.score,
+              n.place, p.nom AS pincab,
+              CASE WHEN c.pseudo = 'Joueur supprimé' THEN 'Anonyme' ELSE c.pseudo END AS pseudo,
+              CASE WHEN c.pseudo = 'Joueur supprimé' THEN '' ELSE n.initiales END AS initiales
+         FROM score_notifications n JOIN cartes c ON c.id = n.carte_id JOIN pincabs p ON p.id = n.pincab_id
+        WHERE (n.cree_ms > ? OR (n.cree_ms = ? AND n.score_id > ?))
+          AND (? = '' OR n.pincab_id <> ?) AND p.bloque = 0
+        ORDER BY n.cree_ms, n.score_id LIMIT 50`).bind(depuis, depuis, apres, pc, pc).all();
+    return json({ ok: true, notifications: r.results || [], maintenant: Date.now() });
+  },
+
+  async "GET /api/push/config"(req, env) {
+    return json({ ok: !!env.VAPID_PUBLIC_KEY, public_key: env.VAPID_PUBLIC_KEY || "" });
+  },
+
+  // L'abonnement push est privé à la carte connectée; endpoint vérifié pour éviter les SSRF.
+  async "POST /api/push/subscribe"(req, env) {
+    const carte = await carteDe(env, req);
+    if (!carte || carte.pseudo === "Joueur supprimé") return erreur("carte_requise", 401);
+    const corps = await lireJson(req);
+    const endpoint = String(corps.endpoint || "");
+    const p256dh = String(corps.p256dh || ""), auth = String(corps.auth || "");
+    if (!isPushServiceEndpoint(endpoint) || endpoint.length > 2048 ||
+        !/^[A-Za-z0-9_-]{80,100}$/.test(p256dh) || !/^[A-Za-z0-9_-]{20,30}$/.test(auth))
+      return erreur("abonnement_invalide", 400);
+    const existant = await env.DB.prepare("SELECT carte_id FROM push_subscriptions WHERE endpoint = ?").bind(endpoint).first();
+    if (!existant || existant.carte_id !== carte.id) {
+      const nombre = await env.DB.prepare("SELECT COUNT(*) AS n FROM push_subscriptions WHERE carte_id = ?").bind(carte.id).first();
+      if ((nombre?.n || 0) >= 5) return erreur("limite_appareils", 429);
+    }
+    const maintenantIso = maintenant();
+    await env.DB.prepare(
+      `INSERT INTO push_subscriptions (endpoint, carte_id, p256dh, auth, created, updated) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(endpoint) DO UPDATE SET carte_id = excluded.carte_id, p256dh = excluded.p256dh,
+       auth = excluded.auth, updated = excluded.updated`)
+      .bind(endpoint, carte.id, p256dh, auth, maintenantIso, maintenantIso).run();
+    return json({ ok: true });
+  },
+
+  async "POST /api/push/unsubscribe"(req, env) {
+    const carte = await carteDe(env, req);
+    if (!carte) return erreur("carte_requise", 401);
+    const corps = await lireJson(req), endpoint = String(corps.endpoint || "");
+    if (!isPushServiceEndpoint(endpoint) || endpoint.length > 2048) return erreur("abonnement_invalide", 400);
+    await env.DB.prepare("DELETE FROM push_subscriptions WHERE carte_id = ? AND endpoint = ?")
+      .bind(carte.id, endpoint).run();
+    return json({ ok: true });
+  },
+
   // NOUVEAU : joueurs qui ont mis des scores en ligne (onglet « Joueurs » du Tableau des scores de PincabOS)
   async "GET /api/joueurs"(req, env, url) {
     const r = await env.DB.prepare(`${MEILLEURS_SQL},
@@ -334,7 +429,7 @@ const API = {
   },
 
   // Confirmation sur le téléphone : le score est mis en ligne sur la carte du joueur.
-  async "POST /api/score"(req, env) {
+  async "POST /api/score"(req, env, _url, ctx) {
     const corps = await lireJson(req);
     const qr = await lireQR(env, corps.p, corps.g, "score");
     if (qr.erreur) return erreur(qr.erreur);
@@ -359,6 +454,11 @@ const API = {
     }
     const deja = await env.DB.prepare("SELECT 1 FROM scores WHERE id = ?").bind(d.u).first();
     if (deja) return erreur("deja_en_ligne", 409);
+    const meilleurJoueurAvant = await env.DB.prepare(
+      "SELECT MAX(score) AS m FROM scores WHERE table_cle = ? AND carte_id = ?").bind(d.t, carte.id).first();
+    const nouveauRecordJoueur = Number(d.sc) > Number(meilleurJoueurAvant?.m || 0);
+    const ancienRangTous = meilleurJoueurAvant?.m
+      ? (await rangs(env, d.t, d.pc, Number(meilleurJoueurAvant.m))).tous : Number.POSITIVE_INFINITY;
     const ancien = await env.DB.prepare(
       `SELECT MAX(s.score) AS m FROM scores s JOIN pincabs p ON p.id = s.pincab_id
         WHERE s.table_cle = ? AND p.bloque = 0`).bind(d.t).first();
@@ -371,7 +471,30 @@ const API = {
     } catch (e) {
       return erreur("deja_en_ligne", 409);       // deux téléphones au même instant
     }
-    return json({ ok: true, rangs: await rangs(env, d.t, d.pc, Number(d.sc)), ancien_record: ancien?.m || 0 });
+    const places = await rangs(env, d.t, d.pc, Number(d.sc));
+    // Alerte seulement lors d'un record global ou d'une première entrée dans le Top 3.
+    // Les améliorations suivantes d'un joueur déjà dans le Top 3 ne génèrent pas de spam.
+    if (nouveauRecordJoueur && (places.tous === 1 || (places.tous <= 3 && ancienRangTous > 3))) {
+      const creeMs = Date.now();
+      await env.DB.prepare(
+        `INSERT OR IGNORE INTO score_notifications
+           (score_id, carte_id, pincab_id, table_cle, table_nom, systeme, score, initiales, place, cree_ms)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .bind(d.u, carte.id, d.pc, d.t, String(d.n || d.t).slice(0, 80), String(d.sy || "").slice(0, 12),
+          Number(d.sc), initiales, places.tous, creeMs).run();
+      const profil = await env.DB.prepare("SELECT pseudo FROM cartes WHERE id = ?").bind(carte.id).first();
+      const titre = places.tous === 1 ? "Nouveau record en ligne !" : "Nouveau score dans le Top 3 !";
+      const corpsPush = `${profil?.pseudo || "Un joueur"} — ${String(d.n || d.t).slice(0, 80)} : ` +
+        `${Number(d.sc).toLocaleString("fr-FR")} points (#${places.tous}).`;
+      const payload = { title: titre, body: corpsPush,
+        url: `/table?cle=${encodeURIComponent(d.t)}`, tag: `score-${d.u}` };
+      if (ctx && typeof ctx.waitUntil === "function") {
+        ctx.waitUntil(envoyerPushScores(env, payload).catch((e) => {
+          console.warn(JSON.stringify({ event: "push_scores_error", message: String(e?.message || e) }));
+        }));
+      }
+    }
+    return json({ ok: true, rangs: places, ancien_record: ancien?.m || 0 });
   },
 
   // Création d'un profil depuis le Setup : le pincab signe la demande, le téléphone ne crée plus le pseudo.
@@ -502,6 +625,7 @@ const API = {
     await env.DB.batch([
       env.DB.prepare("UPDATE scores SET initiales = '' WHERE carte_id = ?").bind(carte.id),
       env.DB.prepare("DELETE FROM liens WHERE carte_id = ?").bind(carte.id),
+      env.DB.prepare("DELETE FROM push_subscriptions WHERE carte_id = ?").bind(carte.id),
       env.DB.prepare("UPDATE cartes SET pseudo = 'Joueur supprimé', initiales = '', jeton_hash = ?, ip = NULL WHERE id = ?")
         .bind(await sha256(jetonInvalide), carte.id),
     ]);
@@ -650,12 +774,20 @@ const ENTETES_PAGE = {
 };
 
 export default {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url);
     const route = API[`${req.method} ${url.pathname}`];
     try {
-      if (route) return await route(req, env, url);
+      if (route) return await route(req, env, url, ctx);
       if (url.pathname.startsWith("/api/")) return erreur("introuvable", 404);
+      if (url.pathname === "/sw.js") {
+        return new Response(SERVICE_WORKER_JS, { headers: { "content-type": "text/javascript; charset=utf-8",
+          "cache-control": "no-cache", "service-worker-allowed": "/", "x-content-type-options": "nosniff" } });
+      }
+      if (url.pathname === "/manifest.webmanifest") {
+        return new Response(MANIFEST, { headers: { "content-type": "application/manifest+json; charset=utf-8",
+          "cache-control": "public, max-age=3600", "x-content-type-options": "nosniff" } });
+      }
       if (url.pathname === "/app.js") {
         return new Response(APP_JS, { headers: { "content-type": "text/javascript; charset=utf-8",
                                                   "cache-control": "public, max-age=31536000, immutable" } });

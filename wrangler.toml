@@ -5,10 +5,14 @@ compatibility_date = "2026-06-01"
 workers_dev = true
 preview_urls = false   # pas d'adresses d'aperçu : une seule adresse publique
 
+[vars]
+VAPID_PUBLIC_KEY = "BMIthn0p6Kyb8-jcOZdzxEZQ84JKJK5hXTSt1Z7mRSyoLkGSusv4agCuuiW4a_FifFOD6G7ImMxcYrfZxZZF01k"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "pincab-scores"
 database_id = "34d1a80f-5e0e-4277-8816-cb8c43da412b"
+migrations_dir = "./migrations"
 
 # Images du site (icônes reprises de PincabOS), servies directement par Cloudflare
 [assets]

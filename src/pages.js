@@ -7,7 +7,10 @@ export const PAGE_HTML = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#070B1A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>PincabOS Scores</title>
+<link rel="manifest" href="/manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;600;800&display=swap">
 <link rel="stylesheet" href="/app.css">
@@ -143,7 +146,8 @@ var TEXTES = {
       deja_en_ligne: "Ce score est déjà en ligne.", code_inconnu: "Code inconnu. Vérifie-le et réessaie.",
       pseudo_invalide: "Pseudo trop court (2 caractères minimum).", pseudo_deja_pris: "Ce pseudo est déjà utilisé par un autre joueur : choisissez-en un autre.", initiales_invalides: "Initiales invalides (1 à 3 lettres ou chiffres).",
       trop_de_demandes: "Trop de demandes depuis cette connexion. Réessaie demain.", erreur_serveur: "Erreur du serveur. Réessaie plus tard.",
-      acces_refuse: "Clé d'administration incorrecte (attention aux majuscules ajoutées par le clavier du téléphone).", introuvable: "Page introuvable."
+      acces_refuse: "Clé d'administration incorrecte (attention aux majuscules ajoutées par le clavier du téléphone).", introuvable: "Page introuvable.",
+      requete_invalide: "Demande invalide.", abonnement_invalide: "Abonnement de notification invalide.", limite_appareils: "Cette carte est déjà activée sur cinq appareils."
     },
     carte_titre: "MA CARTE JOUEUR", creer_titre: "CRÉER MA CARTE JOUEUR",
     creer_texte: "Ta carte garde tous tes scores. Pas d'e-mail ni de mot de passe : seulement un code de secours.",
@@ -164,6 +168,12 @@ var TEXTES = {
     realisations: "SUCCÈS", aucun_succes: "Continue à jouer pour débloquer tes premiers succès.",
     voir_joueurs: "Voir les joueurs et leurs succès", meilleur_score: "Meilleur score", tables_jouees: "Tables jouées",
     temps_cumule: "Temps de jeu cumulé sur cette table",
+    push_titre: "Alertes de gros scores", push_aide: "Reçois une notification lorsqu’un joueur établit un record en ligne ou entre dans le Top 3.",
+    push_activer: "Activer les notifications sur ce téléphone", push_desactiver: "Désactiver les notifications sur ce téléphone",
+    push_active: "Les notifications sont activées sur ce téléphone.", push_inactive: "Les notifications ne sont pas activées sur ce téléphone.",
+    push_non_supporte: "Les notifications ne sont pas disponibles dans ce navigateur. Sur iPhone, ajoute d’abord le site à l’écran d’accueil.",
+    push_refuse: "Autorisation refusée. Modifie les réglages de notifications du navigateur pour les activer.",
+    push_erreur: "Impossible d’activer les notifications. Vérifie la connexion et réessaie.",
     succes_premier_score: "Premier score", succes_cinq_tables: "5 tables jouées", succes_dix_tables: "10 tables jouées",
     succes_premier_podium: "Premier podium", succes_premier_record: "Premier record", succes_cent_scores: "100 scores",
     temps_jeu: "Temps de jeu partagé", temps_par_table: "TEMPS DE JEU PAR TABLE", heures: "h", minutes: "min",
@@ -198,7 +208,8 @@ var TEXTES = {
       deja_en_ligne: "This score is already online.", code_inconnu: "Unknown code. Check it and try again.",
       pseudo_invalide: "Nickname too short (2 characters minimum).", pseudo_deja_pris: "This nickname is already used by another player: choose another one.", initiales_invalides: "Invalid initials (1 to 3 letters or digits).",
       trop_de_demandes: "Too many requests from this connection. Try again tomorrow.", erreur_serveur: "Server error. Try again later.",
-      acces_refuse: "Wrong admin key (watch out for capital letters added by the phone keyboard).", introuvable: "Page not found."
+      acces_refuse: "Wrong admin key (watch out for capital letters added by the phone keyboard).", introuvable: "Page not found.",
+      requete_invalide: "Invalid request.", abonnement_invalide: "Invalid notification subscription.", limite_appareils: "This card is already enabled on five devices."
     },
     carte_titre: "MY PLAYER CARD", creer_titre: "CREATE MY PLAYER CARD",
     creer_texte: "Your card keeps all your scores. No e-mail or password: just a recovery code.",
@@ -219,6 +230,12 @@ var TEXTES = {
     realisations: "ACHIEVEMENTS", aucun_succes: "Keep playing to unlock your first achievements.",
     voir_joueurs: "See players and achievements", meilleur_score: "Best score", tables_jouees: "Tables played",
     temps_cumule: "Total play time on this table",
+    push_titre: "High-score alerts", push_aide: "Get notified when a player sets a new online record or reaches the Top 3.",
+    push_activer: "Enable notifications on this phone", push_desactiver: "Disable notifications on this phone",
+    push_active: "Notifications are enabled on this phone.", push_inactive: "Notifications are not enabled on this phone.",
+    push_non_supporte: "Notifications are unavailable in this browser. On iPhone, first add the site to your Home Screen.",
+    push_refuse: "Permission denied. Change your browser's notification settings to enable them.",
+    push_erreur: "Could not enable notifications. Check your connection and try again.",
     succes_premier_score: "First score", succes_cinq_tables: "5 tables played", succes_dix_tables: "10 tables played",
     succes_premier_podium: "First podium", succes_premier_record: "First record", succes_cent_scores: "100 scores",
     temps_jeu: "Shared play time", temps_par_table: "PLAY TIME BY TABLE", heures: "h", minutes: "min",
@@ -495,6 +512,69 @@ function pageCarte() {
           setTimeout(function () { location.reload(); }, 500);
         });
       } }, T.pseudo_modifier));
+    var pushEtat = el("div", { class: "petit" }, T.push_inactive);
+    var pushBouton = el("button", { type: "button", class: "second", onclick: gererNotificationsPush }, T.push_activer);
+    var registrationPush = null, abonnementPush = null;
+    var blocPush = el("div", { class: "bloc" }, el("b", {}, T.push_titre),
+      el("div", { class: "petit" }, T.push_aide), pushEtat, pushBouton);
+    function afficherEtatPush(actif) {
+      abonnementPush = actif || null;
+      pushBouton.textContent = actif ? T.push_desactiver : T.push_activer;
+      pushEtat.textContent = actif ? T.push_active : T.push_inactive;
+      pushBouton.disabled = false;
+    }
+    function inscriptionPush() {
+      if (!registrationPush) registrationPush = navigator.serviceWorker.register("/sw.js");
+      return registrationPush;
+    }
+    if (window.isSecureContext && "serviceWorker" in navigator && "PushManager" in window) {
+      inscriptionPush().then(function (reg) { return reg.pushManager.getSubscription(); }).then(function (sub) {
+        afficherEtatPush(sub);
+        if (sub) {
+          var donnees = sub.toJSON();
+          api("POST", "/api/push/subscribe", { endpoint: donnees.endpoint,
+            p256dh: donnees.keys && donnees.keys.p256dh, auth: donnees.keys && donnees.keys.auth });
+        }
+      }).catch(function () { pushEtat.textContent = T.push_erreur; });
+    } else {
+      pushEtat.textContent = T.push_non_supporte;
+      pushBouton.disabled = true;
+    }
+    async function gererNotificationsPush() {
+      if (!window.isSecureContext || !("serviceWorker" in navigator) || !("PushManager" in window) || !window.Notification) {
+        pushEtat.textContent = T.push_non_supporte; return;
+      }
+      pushBouton.disabled = true;
+      try {
+        if (abonnementPush) {
+          var resultatSuppression = await api("POST", "/api/push/unsubscribe", { endpoint: abonnementPush.endpoint });
+          if (!resultatSuppression.ok) throw new Error(messageErreur(resultatSuppression));
+          await abonnementPush.unsubscribe();
+          afficherEtatPush(null); return;
+        }
+        // La demande de permission démarre directement dans le clic, comme l'exigent les navigateurs.
+        var permission = window.Notification.permission === "granted" ? Promise.resolve("granted") : window.Notification.requestPermission();
+        var autorisation = await permission;
+        if (autorisation !== "granted") { pushEtat.textContent = T.push_refuse; pushBouton.disabled = false; return; }
+        var configuration = await api("GET", "/api/push/config");
+        if (!configuration.ok || !configuration.public_key) throw new Error(T.push_erreur);
+        var reg = await inscriptionPush();
+        var sub = await reg.pushManager.getSubscription();
+        if (!sub) {
+          var cle = configuration.public_key.replace(/-/g, "+").replace(/_/g, "/");
+          var octets = Uint8Array.from(atob(cle + "=".repeat((4 - cle.length % 4) % 4)), function (c) { return c.charCodeAt(0); });
+          sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: octets });
+        }
+        var jsonSub = sub.toJSON();
+        var resultat = await api("POST", "/api/push/subscribe", { endpoint: jsonSub.endpoint,
+          p256dh: jsonSub.keys && jsonSub.keys.p256dh, auth: jsonSub.keys && jsonSub.keys.auth });
+        if (!resultat.ok) throw new Error(messageErreur(resultat));
+        afficherEtatPush(sub);
+      } catch (e) {
+        pushEtat.textContent = e && e.message ? e.message : T.push_erreur;
+        pushBouton.disabled = false;
+      }
+    }
     var zoneLiens = el("div", { class: "bloc" }, el("b", {}, T.liee_a));
     if (!r.pincabs.length) ajouter(zoneLiens, el("div", { class: "petit" }, T.aucun_pincab));
     (r.pincabs || []).forEach(function (pc) {
@@ -540,7 +620,7 @@ function pageCarte() {
           el("div", {}, mi(ico("podium", "moyenne")), mt(el("div", { class: "grand", style: "color:#FFC83D" }, String(r.stats.podiums))), el("div", { class: "petit" }, T.podiums)),
           el("div", {}, mi(ico("meilleur-score", "moyenne")), mt(el("div", { class: "grand", style: "color:#FFB347" }, String(r.stats.scores))), el("div", { class: "petit" }, T.scores))),
         el("div", { class: "petit avec-ico", style: "justify-content:flex-start;gap:6px" }, mi(ico("table", "petite")), mt(el("span", {}, r.pincabs.length ? T.liee_a + " : " + r.pincabs.map(function (x) { return x.nom; }).join(", ") : T.aucun_pincab))))),
-      formPseudo, zoneLiens,
+      formPseudo, blocPush, zoneLiens,
       el("div", { class: "bloc" }, el("b", {}, T.realisations),
         realisations.length ? el("div", {}, realisations) : el("div", { class: "petit" }, T.aucun_succes)),
       el("div", { class: "section" }, T.mes_scores),
