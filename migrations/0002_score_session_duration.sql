@@ -1,0 +1,2 @@
+ALTER TABLE scores ADD COLUMN duree_partie INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE score_notifications ADD COLUMN duree_partie INTEGER NOT NULL DEFAULT 0;

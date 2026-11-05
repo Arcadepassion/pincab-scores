@@ -141,7 +141,7 @@ var TEXTES = {
       qr_illisible: "Ce QR code n'est pas un QR PincabOS valide.", signature_invalide: "QR code refusé : il n'a pas été créé par un pincab PincabOS.",
       pincab_inconnu: "Ce pincab n'est pas enregistré.", pincab_bloque: "Ce pincab ne peut plus envoyer de scores.",
       qr_mauvais_type: "Ce n'est pas le bon type de QR code.", qr_expire: "Ce QR code a expiré : affiches-en un nouveau sur le pincab.",
-      score_invalide: "Score invalide.", table_invalide: "Table invalide.", carte_requise: "Carte joueur nécessaire.",
+      score_invalide: "Score invalide.", table_invalide: "Table invalide.", duree_invalide: "Durée de partie invalide.", carte_requise: "Carte joueur nécessaire.",
       initiales_prises: "Les initiales {} sont déjà utilisées par une autre carte sur ce pincab. Crée une carte avec d'autres initiales.",
       deja_en_ligne: "Ce score est déjà en ligne.", code_inconnu: "Code inconnu. Vérifie-le et réessaie.",
       pseudo_invalide: "Pseudo trop court (2 caractères minimum).", pseudo_deja_pris: "Ce pseudo est déjà utilisé par un autre joueur : choisissez-en un autre.", initiales_invalides: "Initiales invalides (1 à 3 lettres ou chiffres).",
@@ -167,7 +167,7 @@ var TEXTES = {
     deconnexion: "Déconnecter ce téléphone", deconnexion_confirme: "Déconnecter ce téléphone ? Le profil et les scores ne seront pas supprimés.",
     realisations: "SUCCÈS", aucun_succes: "Continue à jouer pour débloquer tes premiers succès.",
     voir_joueurs: "Voir les joueurs et leurs succès", meilleur_score: "Meilleur score", tables_jouees: "Tables jouées",
-    temps_cumule: "Temps de jeu cumulé sur cette table",
+    temps_cumule: "Temps de jeu cumulé sur cette table", duree_partie: "Durée de la partie :", secondes: "s",
     push_titre: "Alertes de gros scores", push_aide: "Reçois une notification lorsqu’un joueur établit un record en ligne ou entre dans le Top 3.",
     push_activer: "Activer les notifications sur ce téléphone", push_desactiver: "Désactiver les notifications sur ce téléphone",
     push_active: "Les notifications sont activées sur ce téléphone.", push_inactive: "Les notifications ne sont pas activées sur ce téléphone.",
@@ -203,7 +203,7 @@ var TEXTES = {
       qr_illisible: "This is not a valid PincabOS QR code.", signature_invalide: "QR code refused: it was not created by a PincabOS pincab.",
       pincab_inconnu: "This pincab is not registered.", pincab_bloque: "This pincab can no longer send scores.",
       qr_mauvais_type: "Wrong type of QR code.", qr_expire: "This QR code has expired: show a new one on the pincab.",
-      score_invalide: "Invalid score.", table_invalide: "Invalid table.", carte_requise: "Player card required.",
+      score_invalide: "Invalid score.", table_invalide: "Invalid table.", duree_invalide: "Invalid game duration.", carte_requise: "Player card required.",
       initiales_prises: "The initials {} are already used by another card on this pincab. Create a card with other initials.",
       deja_en_ligne: "This score is already online.", code_inconnu: "Unknown code. Check it and try again.",
       pseudo_invalide: "Nickname too short (2 characters minimum).", pseudo_deja_pris: "This nickname is already used by another player: choose another one.", initiales_invalides: "Invalid initials (1 to 3 letters or digits).",
@@ -229,7 +229,7 @@ var TEXTES = {
     deconnexion: "Sign out on this phone", deconnexion_confirme: "Sign out on this phone? Your profile and scores will not be deleted.",
     realisations: "ACHIEVEMENTS", aucun_succes: "Keep playing to unlock your first achievements.",
     voir_joueurs: "See players and achievements", meilleur_score: "Best score", tables_jouees: "Tables played",
-    temps_cumule: "Total play time on this table",
+    temps_cumule: "Total play time on this table", duree_partie: "Game duration:", secondes: "sec",
     push_titre: "High-score alerts", push_aide: "Get notified when a player sets a new online record or reaches the Top 3.",
     push_activer: "Enable notifications on this phone", push_desactiver: "Disable notifications on this phone",
     push_active: "Notifications are enabled on this phone.", push_inactive: "Notifications are not enabled on this phone.",
@@ -258,6 +258,12 @@ function dureeTexte(secondes) {
   secondes = Math.max(0, Number(secondes) || 0);
   var h = Math.floor(secondes / 3600), m = Math.floor((secondes % 3600) / 60);
   return h ? h + " " + T.heures + " " + m + " " + T.minutes : m + " " + T.minutes;
+}
+function dureePartieTexte(secondes) {
+  secondes = Math.max(0, Number(secondes) || 0);
+  if (!secondes) return "";
+  var texte = secondes < 60 ? Math.round(secondes) + " " + T.secondes : dureeTexte(secondes);
+  return " · " + T.duree_partie + " " + texte;
 }
 function date(iso) {
   try { return new Date(iso).toLocaleString(LANGUE, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }); }
@@ -410,7 +416,7 @@ function pageAccueil() {
     });
     var derniers = (r.derniers || []).map(function (s) {
       var badge = s.place === 1 ? T.record : (s.place <= 5 ? t("top", s.place) : placeTexte(s.place));
-      return ligneScore(s.place, s.table_nom, s.initiales + " · " + s.pincab + " · " + date(s.ajoute),
+      return ligneScore(s.place, s.table_nom, s.initiales + " · " + s.pincab + " · " + date(s.ajoute) + dureePartieTexte(s.duree_partie),
         [nombre(s.score), el("div", { class: "petit", style: "font-family:Inter;font-weight:800;color:#FFC83D" }, badge)],
         "/table?cle=" + encodeURIComponent(s.table_cle), false, s.table_nom);
     });
@@ -445,7 +451,8 @@ function carteScore(s, badge) {
     badge,
     wheel(s.table, "grande"),
     el("div", { style: "font-weight:800;font-size:18px" }, s.table),
-    el("div", { class: "petit" }, systeme(s.systeme), " · " + s.pincab + (s.date ? " · " + date(s.date) : "")),
+    el("div", { class: "petit" }, systeme(s.systeme), " · " + s.pincab + (s.date ? " · " + date(s.date) : ""),
+      dureePartieTexte(s.duree_partie)),
     mt(el("div", { class: "score" }, nombre(s.score))),
     s.initiales ? el("div", { class: "cyan", style: "font-family:Anton,Impact,sans-serif;font-size:28px;letter-spacing:2px" }, s.initiales) : null));
 }
@@ -498,7 +505,7 @@ function pageCarte() {
     garderInitiales(r.initiales);
     if (retour) { location.href = retour; return; }
     var liste = (r.scores || []).map(function (s) {
-      return ligneScore(s.place, s.table_nom, s.pincab + " · " + date(s.ajoute), nombre(s.score),
+      return ligneScore(s.place, s.table_nom, s.pincab + " · " + date(s.ajoute) + dureePartieTexte(s.duree_partie), nombre(s.score),
         "/table?cle=" + encodeURIComponent(s.table_cle), false, s.table_nom);
     });
     var pseudoModifie = el("input", { value: r.pseudo, maxlength: "24", autocomplete: "nickname", "aria-label": T.pseudo_modifier });
@@ -706,7 +713,8 @@ function pageTable() {
         el("button", { type: "button", class: vue === "pincab" ? "actif" : "", onclick: function () { vue = "pincab"; charger(); } }, T.sur_pincab),
         el("button", { type: "button", class: vue === "tous" ? "actif" : "", onclick: function () { vue = "tous"; charger(); } }, T.tous_pincabs)) : null;
       var lignes = (r.lignes || []).map(function (l, i) {
-        return ligneScore(i + 1, l.initiales + "  " + l.pseudo, (l.pincab || "") + " · " + date(l.ajoute), nombre(l.score), null,
+      return ligneScore(i + 1, l.initiales + "  " + l.pseudo,
+        (l.pincab || "") + " · " + date(l.ajoute) + dureePartieTexte(l.duree_partie), nombre(l.score), null,
           window.INITIALES && l.initiales === window.INITIALES && codeCarte());
       });
       afficher(entete(),
@@ -750,7 +758,8 @@ function pageJoueur() {
     if (!r.ok) { afficher(entete(), blocErreur(messageErreur(r))); return; }
     var succes = texteSucces(r.realisations);
     var scores = (r.tables || []).map(function (x, i) {
-      return ligneScore(x.rang, x.table_nom, (x.pincab || "") + (x.ajoute ? " · " + date(x.ajoute) : ""), nombre(x.score),
+      return ligneScore(x.rang, x.table_nom,
+        (x.pincab || "") + (x.ajoute ? " · " + date(x.ajoute) : "") + dureePartieTexte(x.duree_partie), nombre(x.score),
         "/table?cle=" + encodeURIComponent(x.table_cle), false, x.table_nom);
     });
     afficher(entete(),

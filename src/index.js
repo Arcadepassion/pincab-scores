@@ -115,6 +115,13 @@ function maintenant() {
   return new Date().toISOString().slice(0, 19) + "Z";
 }
 
+function dureeLisible(secondes) {
+  const s = Math.max(0, Number(secondes) || 0);
+  if (s > 0 && s < 60) return `${Math.round(s)} sec`;
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  return h ? `${h} h ${m} min` : `${m} min`;
+}
+
 function json(donnees, statut = 200) {
   return new Response(JSON.stringify(donnees), {
     status: statut,
@@ -160,6 +167,8 @@ function verifierScore(d) {
   if (!Number.isSafeInteger(score) || score <= 0 || score > SCORE_MAX) return "score_invalide";
   if (typeof d.u !== "string" || d.u.length < 8 || d.u.length > 64) return "qr_illisible";
   if (typeof d.t !== "string" || !/^[A-Z0-9_]{2,12}:[^\s]{1,80}$/i.test(d.t)) return "table_invalide";
+  if (d.du !== undefined && (!Number.isSafeInteger(Number(d.du)) || Number(d.du) < 0 || Number(d.du) > 86400))
+    return "duree_invalide";
   return null;
 }
 
@@ -230,7 +239,7 @@ const API = {
     const pc = String(url.searchParams.get("pc") || "").slice(0, 80);
     if (!Number.isSafeInteger(depuis) || depuis < 0) return erreur("requete_invalide", 400);
     const r = await env.DB.prepare(
-      `SELECT n.score_id AS id, n.cree_ms, n.table_cle, n.table_nom, n.systeme, n.score,
+      `SELECT n.score_id AS id, n.cree_ms, n.table_cle, n.table_nom, n.systeme, n.score, n.duree_partie,
               n.place, p.nom AS pincab,
               CASE WHEN c.pseudo = 'Joueur supprimé' THEN 'Anonyme' ELSE c.pseudo END AS pseudo,
               CASE WHEN c.pseudo = 'Joueur supprimé' THEN '' ELSE n.initiales END AS initiales
@@ -316,7 +325,9 @@ const API = {
              (SELECT p.nom FROM scores s JOIN pincabs p ON p.id = s.pincab_id WHERE s.carte_id = m.carte_id
                AND s.table_cle = m.table_cle ORDER BY s.score DESC LIMIT 1) AS pincab,
              (SELECT s.ajoute FROM scores s WHERE s.carte_id = m.carte_id AND s.table_cle = m.table_cle
-               ORDER BY s.score DESC LIMIT 1) AS ajoute
+               ORDER BY s.score DESC, s.ajoute DESC LIMIT 1) AS ajoute,
+             (SELECT s.duree_partie FROM scores s WHERE s.carte_id = m.carte_id AND s.table_cle = m.table_cle
+               ORDER BY s.score DESC, s.ajoute DESC LIMIT 1) AS duree_partie
         FROM m WHERE m.carte_id = ?1 ORDER BY rang, score DESC LIMIT 300`).bind(id).all();
     const stats = await env.DB.prepare(
       "SELECT COUNT(*) AS scores, COUNT(DISTINCT table_cle) AS tables FROM scores WHERE carte_id = ?").bind(id).first();
@@ -420,7 +431,8 @@ const API = {
     }
     return json({
       ok: true,
-      score: { table: d.n, table_cle: d.t, systeme: d.sy, score: Number(d.sc), initiales: normaliserInitiales(d.i),
+      score: { table: d.n, table_cle: d.t, systeme: d.sy, score: Number(d.sc), duree_partie: Number(d.du) || 0,
+               initiales: normaliserInitiales(d.i),
                date: d.d, pincab: qr.pincab.nom, pincab_id: d.pc },
       deja: deja ? { pseudo: deja.pseudo, initiales: deja.initiales, le: deja.ajoute } : null,
       carte: carte ? { pseudo: carte.pseudo, initiales: carte.initiales, liee: !!lien } : null,
@@ -464,10 +476,10 @@ const API = {
         WHERE s.table_cle = ? AND p.bloque = 0`).bind(d.t).first();
     try {
       await env.DB.prepare(
-        `INSERT INTO scores (id, pincab_id, carte_id, table_cle, table_nom, systeme, score, initiales, date_partie, ajoute)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        `INSERT INTO scores (id, pincab_id, carte_id, table_cle, table_nom, systeme, score, initiales, date_partie, ajoute, duree_partie)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .bind(d.u, d.pc, carte.id, d.t, String(d.n || d.t).slice(0, 80), String(d.sy || "").slice(0, 12),
-              Number(d.sc), initiales, String(d.d || "").slice(0, 25), maintenant()).run();
+              Number(d.sc), initiales, String(d.d || "").slice(0, 25), maintenant(), Number(d.du) || 0).run();
     } catch (e) {
       return erreur("deja_en_ligne", 409);       // deux téléphones au même instant
     }
@@ -478,14 +490,16 @@ const API = {
       const creeMs = Date.now();
       await env.DB.prepare(
         `INSERT OR IGNORE INTO score_notifications
-           (score_id, carte_id, pincab_id, table_cle, table_nom, systeme, score, initiales, place, cree_ms)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+           (score_id, carte_id, pincab_id, table_cle, table_nom, systeme, score, initiales, place, cree_ms, duree_partie)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .bind(d.u, carte.id, d.pc, d.t, String(d.n || d.t).slice(0, 80), String(d.sy || "").slice(0, 12),
-          Number(d.sc), initiales, places.tous, creeMs).run();
+          Number(d.sc), initiales, places.tous, creeMs, Number(d.du) || 0).run();
       const profil = await env.DB.prepare("SELECT pseudo FROM cartes WHERE id = ?").bind(carte.id).first();
       const titre = places.tous === 1 ? "Nouveau record en ligne !" : "Nouveau score dans le Top 3 !";
-      const corpsPush = `${profil?.pseudo || "Un joueur"} — ${String(d.n || d.t).slice(0, 80)} : ` +
-        `${Number(d.sc).toLocaleString("fr-FR")} points (#${places.tous}).`;
+      const duree = Number(d.du) || 0;
+      const corpsPush = `${profil?.pseudo || "Un joueur"} (${initiales}) — ${String(d.n || d.t).slice(0, 80)} : ` +
+        `${Number(d.sc).toLocaleString("fr-FR")} points (#${places.tous})` +
+        (duree ? ` · Partie ${dureeLisible(duree)}` : ".");
       const payload = { title: titre, body: corpsPush,
         url: `/table?cle=${encodeURIComponent(d.t)}`, tag: `score-${d.u}` };
       if (ctx && typeof ctx.waitUntil === "function") {
@@ -579,7 +593,7 @@ const API = {
     const carte = await carteDe(env, req);
     if (!carte) return erreur("carte_requise", 401);
     const scores = await env.DB.prepare(
-      `SELECT s.id, s.table_cle, s.table_nom, s.systeme, s.score, s.ajoute, p.nom AS pincab
+      `SELECT s.id, s.table_cle, s.table_nom, s.systeme, s.score, s.duree_partie, s.ajoute, p.nom AS pincab
          FROM scores s JOIN pincabs p ON p.id = s.pincab_id WHERE s.carte_id = ? ORDER BY s.ajoute DESC LIMIT 30`)
       .bind(carte.id).all();
     const liste = [];
@@ -685,14 +699,16 @@ const API = {
     const pc = url.searchParams.get("pc") || "";
     const vue = pc ? "pincab" : "tous";
     const r = await env.DB.prepare(
-      `SELECT c.id AS carte_id, CASE WHEN c.pseudo = 'Joueur supprimé' THEN 'Anonyme' ELSE c.pseudo END AS pseudo,
-              s.initiales, MAX(s.score) AS score, s.ajoute,
-              (SELECT p2.nom FROM scores s2 JOIN pincabs p2 ON p2.id = s2.pincab_id
-                WHERE s2.carte_id = c.id AND s2.table_cle = s.table_cle ORDER BY s2.score DESC LIMIT 1) AS pincab
-         FROM scores s JOIN cartes c ON c.id = s.carte_id JOIN pincabs p ON p.id = s.pincab_id
-        WHERE s.table_cle = ? AND p.bloque = 0
-          AND ${vue === "pincab" ? "s.pincab_id = ?" : "1 = 1"}
-        GROUP BY c.id ORDER BY score DESC LIMIT 50`)
+      `WITH classes AS (
+         SELECT c.id AS carte_id, CASE WHEN c.pseudo = 'Joueur supprimé' THEN 'Anonyme' ELSE c.pseudo END AS pseudo,
+                s.initiales, s.score, s.duree_partie, s.ajoute, p.nom AS pincab,
+                ROW_NUMBER() OVER (PARTITION BY c.id ORDER BY s.score DESC, s.ajoute DESC, s.id DESC) AS numero
+           FROM scores s JOIN cartes c ON c.id = s.carte_id JOIN pincabs p ON p.id = s.pincab_id
+          WHERE s.table_cle = ? AND p.bloque = 0
+            AND ${vue === "pincab" ? "s.pincab_id = ?" : "1 = 1"}
+       )
+       SELECT carte_id, pseudo, initiales, score, duree_partie, ajoute, pincab
+         FROM classes WHERE numero = 1 ORDER BY score DESC LIMIT 50`)
       .bind(...(vue === "pincab" ? [cle, pc] : [cle])).all();
     const nom = await env.DB.prepare("SELECT table_nom, systeme FROM scores WHERE table_cle = ? ORDER BY ajoute DESC LIMIT 1")
       .bind(cle).first();
@@ -721,7 +737,7 @@ const API = {
         WHERE p.bloque = 0 AND trim(s.table_nom) <> ''
         GROUP BY lower(trim(s.table_nom)) ORDER BY temps_jeu DESC, s.table_nom COLLATE NOCASE LIMIT 100`).all();
     const r = await env.DB.prepare(
-      `SELECT s.table_cle, s.table_nom, s.systeme, s.score, s.initiales, s.ajoute, p.nom AS pincab
+      `SELECT s.table_cle, s.table_nom, s.systeme, s.score, s.duree_partie, s.initiales, s.ajoute, p.nom AS pincab
          FROM scores s JOIN pincabs p ON p.id = s.pincab_id
         WHERE p.bloque = 0 ORDER BY s.ajoute DESC LIMIT 20`).all();
     const derniers = [];
