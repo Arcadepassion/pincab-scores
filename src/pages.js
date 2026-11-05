@@ -39,6 +39,7 @@ a{color:var(--cyan)}a:hover{color:var(--cyan2)}
 .badge-img.verrou{filter:grayscale(1) brightness(.45)}.m-img>.m-reflet.verrou{filter:grayscale(1) brightness(.45)}
 .petits-badges{display:flex;flex-wrap:wrap;gap:4px 8px;margin-top:6px;align-items:flex-start}
 .petit-badge{display:inline-flex;align-items:flex-start;gap:2px;font-size:11px;font-weight:800;color:var(--or)}
+.explication-badge.verrou .petit{color:var(--gris)}.etat-badge{font-size:20px;color:var(--gris)}.etat-badge.gagne{font-family:Anton,Impact,sans-serif;font-size:22px;color:#FFE27A}
 .badge-gauche{flex:0 0 auto;align-self:flex-start}.badge-gauche .badge-img{width:64px;height:64px}.badge-gauche .m-img{margin-bottom:22px}
 .son-bouton{width:40px;min-width:40px;height:40px;min-height:40px;padding:0;border:1px solid var(--bord2);border-radius:50%;background:var(--carte2);font-size:18px;line-height:1}
 .celeb{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;overflow:hidden;cursor:pointer;
@@ -2343,13 +2344,6 @@ function pageCarte() {
         location.href = "/";
       });
     } }, T.compte_supprimer);
-    var nomsRealisations = {   // NOUVEAU : noms des succès dans la langue choisie
-      premier_score: T.succes_premier_score, cinq_tables: T.succes_cinq_tables, dix_tables: T.succes_dix_tables,
-      premier_podium: T.succes_premier_podium, premier_record: T.succes_premier_record, cent_scores: T.succes_cent_scores
-    };
-    var realisations = (r.realisations || []).map(function (x) {
-      return el("span", { class: "badge", style: "margin:3px" }, ico("trophee", "petite"), nomsRealisations[x.cle] || x.cle);
-    });
     afficher(entete(),
       el("h1", { class: "titre", style: "font-size:22px" }, T.carte_titre),
       // NOUVEAU : tout ce qui est dans le cadre de la carte a son reflet (effet miroir)
@@ -2362,12 +2356,12 @@ function pageCarte() {
           el("div", {}, mi(ico("podium", "moyenne")), mt(el("div", { class: "grand", style: "color:#FFC83D" }, String(r.stats.podiums))), el("div", { class: "petit" }, T.tables_top3)),
           el("div", {}, mi(ico("meilleur-score", "moyenne")), mt(el("div", { class: "grand", style: "color:#FFB347" }, String(r.stats.scores))), el("div", { class: "petit" }, T.scores))),
         el("div", { class: "petit avec-ico", style: "justify-content:flex-start;gap:6px" }, mi(ico("table", "petite")), mt(el("span", {}, r.pincabs.length ? T.liee_a + " : " + r.pincabs.map(function (x) { return x.nom; }).join(", ") : T.aucun_pincab))))),
-      zonePodium(),   // NOUVEAU : les 3 meilleurs joueurs de tous les pincabs + succès par période
-      formPseudo, blocPush, zoneLiens,
-      el("div", { class: "bloc" }, el("b", {}, T.realisations),
-        grilleBadges(r.realisations, r.recompenses)),   // NOUVEAU : collection de badges
+      // CORRECTIF : la carte ne montre que ce qui concerne le joueur (le podium et les succès de la période
+      // sont sur l'accueil) : ses badges, ses scores, puis ses réglages
+      blocMesBadges(r.realisations, r.recompenses),
       el("div", { class: "section" }, T.mes_scores),
       liste.length ? el("div", { class: "liste" }, liste) : el("div", { class: "vide" }, T.aucun),
+      formPseudo, blocPush, zoneLiens,
       el("div", { class: "actions" }, actionCompte,
         el("button", { type: "button", class: "second", onclick: function () {
           if (confirm(T.deconnexion_confirme)) { oublierCode(); location.href = "/"; }
@@ -2544,16 +2538,21 @@ function blocChampions(ch) {
       el("b", { class: "titre", style: "font-size:20px" }, T.succes_titre)),
     el("div", { class: "liste" }, lignes));
 }
-// NOUVEAU : tableau des badges à gagner : le badge, son nom et comment l'obtenir
+// CORRECTIF : un seul tableau des badges, sur la carte du joueur : chaque badge (en couleur s'il est gagné,
+// grisé sinon), son nom, comment l'obtenir et où en est le joueur. Avant, le tableau des badges à gagner et
+// la grille des badges du joueur étaient en double (accueil + carte).
 var OBJECTIFS_DEFAUT = { jour: 3, semaine: 10, mois: 30, annee: 150 };
-function blocBadgesAGagner(ch) {
+function blocMesBadges(realisations, rec) {
+  var obtenus = {};
+  (realisations || []).forEach(function (x) { obtenus[x.cle] = true; });
   var lignes = PERIODES.concat(BADGES_REALISATIONS).map(function (cle) {
-    var objectif = ((ch || {})[cle] || {}).objectif || OBJECTIFS_DEFAUT[cle];
-    return el("div", { class: "ligne explication-badge" },
-      el("div", { class: "badge-gauche" }, imageBadge(cle, true)),
+    var periode = OBJECTIFS_DEFAUT[cle] !== undefined, n = periode ? ((rec && rec[cle]) || 0) : (obtenus[cle] ? 1 : 0);
+    return el("div", { class: "ligne explication-badge" + (n ? "" : " verrou") },
+      el("div", { class: "badge-gauche" }, imageBadge(cle, n > 0)),
       el("div", { class: "milieu" },
-        el("b", { class: "or" }, T["succes_" + cle] || cle),
-        el("span", { class: "petit" }, objectif ? t("comment_" + cle, nombre(objectif)) : T["comment_" + cle])));
+        el("b", { class: n ? "or" : "" }, T["succes_" + cle] || cle),
+        el("span", { class: "petit" }, periode ? t("comment_" + cle, nombre(OBJECTIFS_DEFAUT[cle])) : T["comment_" + cle])),
+      el("div", { class: "droite etat-badge" + (n ? " gagne" : "") }, n ? (periode ? "×" + n : "✓") : "🔒"));
   });
   return el("div", { class: "bloc" },
     el("div", { class: "avec-ico", style: "justify-content:flex-start" }, ico("trophee", "moyenne"),
@@ -2565,7 +2564,7 @@ function zonePodium() {
   var zone = el("div", { class: "liste", style: "gap:14px" });
   api("GET", "/api/podium").then(function (r) {
     if (!r.ok) return;
-    ajouter(zone, [blocPodium(r.podium), blocChampions(r.champions), blocBadgesAGagner(r.champions)]);   // CORRECTIF : ajouter() prend une liste
+    ajouter(zone, [blocPodium(r.podium), blocChampions(r.champions)]);   // CORRECTIF : ajouter() prend une liste
   });
   return zone;
 }
