@@ -421,8 +421,9 @@ async function attribuerRecompenses(env) {
   const maintenantMs = Date.now();
   const aFaire = [];
   let p = periode("jour", maintenantMs);
-  for (let i = 0; i < 7; i++) { p = periode("jour", p.debut - 1); aFaire.push(["jour", p]); }
-  for (const type of ["semaine", "mois", "annee"]) aFaire.push([type, periode(type, periode(type, maintenantMs).debut - 1)]);
+  // CORRECTIF : jour / semaine / mois = missions (attribuées dès qu'elles sont réussies) ; ici, seulement l'année
+  void p;
+  for (const type of ["annee"]) aFaire.push([type, periode(type, periode(type, maintenantMs).debut - 1)]);
   const cles = aFaire.map(([type, x]) => type + "|" + x.cle);
   const marques = cles.map(() => "?").join(",");
   const deja = await env.DB.prepare(`SELECT type || '|' || periode AS k FROM recompenses WHERE type || '|' || periode IN (${marques})`)
@@ -443,11 +444,140 @@ async function attribuerRecompenses(env) {
 }
 async function recompensesDe(env, carteId) {
   await assurerTableRecompenses(env);
-  const r = await env.DB.prepare("SELECT type, COUNT(*) AS n FROM recompenses WHERE carte_id = ? GROUP BY type")
-    .bind(carteId).all();
+  await assurerTableMissions(env);
+  // CORRECTIF : succès du jour / semaine / mois = missions réussies (+ succès gagnés avant les missions)
+  const r = await env.DB.prepare(
+    `SELECT type, COUNT(*) AS n FROM (SELECT type FROM recompenses WHERE carte_id = ?1
+       UNION ALL SELECT type FROM missions_reussies WHERE carte_id = ?1) GROUP BY type`).bind(carteId).all();
   const o = { jour: 0, semaine: 0, mois: 0, annee: 0 };
   for (const x of r.results || []) o[x.type] = Number(x.n) || 0;
   return o;
+}
+
+// ------------------------------------------------------------------ NOUVEAU : missions
+// Succès du jour : une mission pour chaque jour de la semaine (lundi → dimanche), le cycle recommence le lundi.
+// Succès de la semaine / du mois : une mission tirée au hasard dans une liste, différente à chaque période.
+// Tout joueur qui réussit la mission gagne le badge de la période (le badge reste le même).
+// Mesures : parties, tables (différentes), temps (s cumulées), longue (s, plus longue partie), records (en
+// ligne), top3 (entrées dans le Top 3), tables_top3 (tables différentes dans le Top 3), jours (différents),
+// points (record = 3, Top 3 = 1).
+const MISSIONS = {
+  jour: [{ m: "tables", n: 4 }, { m: "temps", n: 2700 }, { m: "top3", n: 1 }, { m: "parties", n: 10 },
+         { m: "longue", n: 900 }, { m: "records", n: 1 }, { m: "points", n: 4 }],
+  semaine: [{ m: "parties", n: 40 }, { m: "tables", n: 12 }, { m: "temps", n: 14400 }, { m: "records", n: 3 },
+            { m: "tables_top3", n: 5 }, { m: "jours", n: 5 }, { m: "points", n: 15 }],
+  mois: [{ m: "parties", n: 150 }, { m: "tables", n: 30 }, { m: "temps", n: 43200 }, { m: "records", n: 8 },
+         { m: "tables_top3", n: 15 }, { m: "jours", n: 15 }, { m: "points", n: 50 }],
+};
+const TYPES_MISSION = ["jour", "semaine", "mois"];
+let tableMissionsPrete = false;
+async function assurerTableMissions(env) {
+  if (tableMissionsPrete) return;
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS missions_reussies (
+       type TEXT NOT NULL, periode TEXT NOT NULL, carte_id TEXT NOT NULL, mission TEXT NOT NULL, cree TEXT NOT NULL,
+       PRIMARY KEY (type, periode, carte_id))`).run();
+  tableMissionsPrete = true;
+}
+function hasard(graine) {      // générateur pseudo-aléatoire reproductible (même tirage pour tout le monde)
+  let h = 2166136261;
+  for (const c of String(graine)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); }
+  return () => { h = Math.imul(h ^ (h >>> 15), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); h ^= h >>> 16; return (h >>> 0) / 4294967296; };
+}
+function melange(type, cycle) {   // chaque mission une fois par cycle, dans un ordre tiré au hasard
+  const ordre = MISSIONS[type].map((_, i) => i), alea = hasard(`pincabos|${type}|${cycle}`);
+  for (let i = ordre.length - 1; i > 0; i--) { const j = Math.floor(alea() * (i + 1)); [ordre[i], ordre[j]] = [ordre[j], ordre[i]]; }
+  return ordre;
+}
+function missionDe(type, ms) {
+  const p = periode(type, ms), o = partiesParis(ms), liste = MISSIONS[type];
+  let index;
+  if (type === "jour") {
+    index = (new Date(Date.UTC(o.year, o.month - 1, o.day)).getUTCDay() + 6) % 7;   // lundi = 0
+  } else {
+    const numero = type === "semaine" ? Math.round(p.debut / (7 * 86400000)) : o.year * 12 + (o.month - 1);
+    const cycle = Math.floor(numero / liste.length), position = numero % liste.length;
+    const ordre = melange(type, cycle);
+    if (position === 0) {           // pas deux fois la même mission d'un cycle à l'autre
+      const avant = melange(type, cycle - 1);
+      if (ordre[0] === avant[avant.length - 1]) [ordre[0], ordre[1]] = [ordre[1], ordre[0]];
+    }
+    index = ordre[position];
+  }
+  return { ...liste[index], index, periode: p };
+}
+function valeurMission(x, m) {
+  if (!x) return 0;
+  if (m === "points") return (Number(x.records) || 0) * 3 + ((Number(x.top3) || 0) - (Number(x.records) || 0));
+  return Number(x[m]) || 0;
+}
+// Mesures de la période pour un joueur (carteId) ou pour tous (carteId vide) : { carte_id: mesures }
+async function mesuresPeriode(env, debut, fin, carteId) {
+  const a = new Date(debut).toISOString(), b = new Date(fin).toISOString();
+  const h = Math.round(decalageParis(debut) / 3600000);
+  const filtre = carteId ? "AND s.carte_id = ?3" : "";
+  const filtreN = carteId ? "AND n.carte_id = ?3" : "";
+  const sc = await env.DB.prepare(
+    `SELECT s.carte_id, COUNT(*) AS parties, COUNT(DISTINCT s.table_cle) AS tables,
+            COALESCE(SUM(s.duree_partie), 0) AS temps, COALESCE(MAX(s.duree_partie), 0) AS longue,
+            COUNT(DISTINCT date(s.ajoute, '${h >= 0 ? "+" : ""}${h} hours')) AS jours
+       FROM scores s JOIN pincabs p ON p.id = s.pincab_id
+      WHERE s.ajoute >= ?1 AND s.ajoute < ?2 AND p.bloque = 0 ${filtre} GROUP BY s.carte_id`)
+    .bind(a, b, ...(carteId ? [carteId] : [])).all();
+  const ev = await env.DB.prepare(
+    `SELECT n.carte_id, SUM(CASE WHEN n.place = 1 THEN 1 ELSE 0 END) AS records, COUNT(*) AS top3,
+            COUNT(DISTINCT n.table_cle) AS tables_top3
+       FROM score_notifications n JOIN pincabs p ON p.id = n.pincab_id
+      WHERE n.cree_ms >= ?1 AND n.cree_ms < ?2 AND p.bloque = 0 ${filtreN} GROUP BY n.carte_id`)
+    .bind(debut, fin, ...(carteId ? [carteId] : [])).all();
+  const o = {};
+  for (const x of sc.results || []) o[x.carte_id] = { ...x };
+  for (const x of ev.results || []) o[x.carte_id] = { ...(o[x.carte_id] || { carte_id: x.carte_id }), ...x };
+  return o;
+}
+// Après un score : le joueur a-t-il réussi la mission du jour / de la semaine / du mois ?
+async function verifierMissions(env, carteId) {
+  try {
+    await assurerTableMissions(env);
+    const ms = Date.now();
+    for (const type of TYPES_MISSION) {
+      const mi = missionDe(type, ms);
+      const mesures = (await mesuresPeriode(env, mi.periode.debut, mi.periode.fin, carteId))[carteId];
+      if (valeurMission(mesures, mi.m) >= mi.n) {
+        await env.DB.prepare("INSERT OR IGNORE INTO missions_reussies (type, periode, carte_id, mission, cree) VALUES (?, ?, ?, ?, ?)")
+          .bind(type, mi.periode.cle, carteId, `${mi.m}:${mi.n}`, maintenant()).run();
+      }
+    }
+  } catch (e) {
+    console.warn(JSON.stringify({ event: "missions_error", message: String(e?.message || e) }));
+  }
+}
+// Mission en cours (pour le site et le Frontend) : la mission, qui l'a réussie, le joueur le plus avancé.
+async function etatMission(env, type, ms, carteMoi) {
+  await assurerTableMissions(env);
+  const mi = missionDe(type, ms);
+  const mesures = await mesuresPeriode(env, mi.periode.debut, mi.periode.fin, "");
+  const reussis = await env.DB.prepare(
+    `SELECT c.id AS carte_id, c.pseudo, c.initiales FROM missions_reussies r JOIN cartes c ON c.id = r.carte_id
+      WHERE r.type = ? AND r.periode = ? ORDER BY r.cree LIMIT 50`).bind(type, mi.periode.cle).all();
+  let tete = null;
+  for (const [id, x] of Object.entries(mesures)) {
+    const v = valeurMission(x, mi.m);
+    if (v > 0 && (!tete || v > tete.valeur)) tete = { carte_id: id, valeur: v };
+  }
+  if (tete) {
+    const c = await env.DB.prepare("SELECT pseudo, initiales FROM cartes WHERE id = ?").bind(tete.carte_id).first();
+    tete = c ? { ...tete, ...c, points: tete.valeur } : null;      // « points » : compatibilité anciens Frontends
+  }
+  const prec = missionDe(type, mi.periode.debut - 1);
+  const nbPrec = await env.DB.prepare("SELECT COUNT(*) AS n FROM missions_reussies WHERE type = ? AND periode = ?")
+    .bind(type, prec.periode.cle).first();
+  const liste = (reussis.results || []);
+  return { mission: { m: mi.m, n: mi.n, index: mi.index }, objectif: mi.n, fin: new Date(mi.periode.fin).toISOString(),
+           en_tete: tete, nb_reussi: liste.length, reussi: liste.slice(0, 8),
+           mission_precedente: { m: prec.m, n: prec.n }, nb_precedent: Number(nbPrec?.n) || 0, precedent: null,
+           moi: carteMoi ? { valeur: valeurMission(mesures[carteMoi], mi.m), reussi: liste.some((x) => x.carte_id === carteMoi) } : null,
+           semaine: type === "jour" ? MISSIONS.jour.map((x) => ({ m: x.m, n: x.n })) : undefined };
 }
 async function podium(env) {
   const r = await env.DB.prepare(`${MEILLEURS_SQL},
@@ -486,10 +616,11 @@ async function effacerCartes(env, ids) {
   await assurerTableSuspects(env);
   await assurerTableBadges(env);
   await assurerTableRecompenses(env);
+  await assurerTableMissions(env);
   const ops = [];
   for (const id of ids) {
     for (const table of ["scores", "scores_suspects", "score_notifications", "liens", "push_subscriptions",
-                         "badges_obtenus", "recompenses"]) {
+                         "badges_obtenus", "recompenses", "missions_reussies"]) {
       ops.push(env.DB.prepare(`DELETE FROM ${table} WHERE carte_id = ?`).bind(id));
     }
     ops.push(env.DB.prepare("DELETE FROM cartes WHERE id = ?").bind(id));
@@ -519,7 +650,9 @@ const API = {
     await attribuerRecompenses(env);
     const maintenantMs = Date.now();
     const champions = {};
-    for (const type of TYPES_PERIODE) {
+    const carteMoi = await carteDe(env, req);
+    for (const type of TYPES_MISSION) champions[type] = await etatMission(env, type, maintenantMs, carteMoi?.id || "");   // NOUVEAU
+    for (const type of ["annee"]) {   // CORRECTIF : seule l'année garde le « meilleur joueur avec objectif »
       const actuelle = periode(type, maintenantMs);
       const precedente = periode(type, actuelle.debut - 1);
       const gagnant = await env.DB.prepare(
@@ -592,6 +725,7 @@ const API = {
   // sans « depuis » (première visite) : seulement les badges de la carte de ce téléphone des dernières 24 h.
   async "GET /api/badges/recents"(req, env, url) {
     await assurerTableBadges(env);
+    await assurerTableMissions(env);
     await attribuerRecompenses(env);
     const maintenantIso = maintenant();
     const depuisBrut = String(url.searchParams.get("depuis") || "");
@@ -605,6 +739,12 @@ const API = {
                 (SELECT p.nom FROM pincabs p WHERE p.id = b.pincab_id) AS pincab
            FROM badges_obtenus b JOIN cartes c ON c.id = b.carte_id
           WHERE b.obtenu > ?1 AND c.pseudo <> 'Joueur supprimé'
+         UNION ALL
+         SELECT m.type AS cle, m.periode, m.cree AS date, m.carte_id, c.pseudo, c.initiales,
+                (SELECT p.nom FROM scores s JOIN pincabs p ON p.id = s.pincab_id WHERE s.carte_id = m.carte_id
+                  ORDER BY s.ajoute DESC LIMIT 1) AS pincab
+           FROM missions_reussies m JOIN cartes c ON c.id = m.carte_id
+          WHERE m.cree > ?1
          UNION ALL
          SELECT r.type AS cle, r.periode, r.cree AS date, r.carte_id, c.pseudo, c.initiales,
                 (SELECT p.nom FROM scores s JOIN pincabs p ON p.id = s.pincab_id WHERE s.carte_id = r.carte_id
@@ -856,6 +996,7 @@ const API = {
         }));
       }
     }
+    await verifierMissions(env, carte.id);   // NOUVEAU : mission du jour / de la semaine / du mois réussie ?
     return json({ ok: true, rangs: places, ancien_record: ancien?.m || 0 });
   },
 
@@ -1187,6 +1328,7 @@ const API = {
     }
     await env.DB.batch(ops);
     if (corps.accepter) await noterNouveauxBadges(env, s.carte_id, s.pincab_id, badgesAvant);   // NOUVEAU
+    if (corps.accepter) await verifierMissions(env, s.carte_id);   // NOUVEAU
     return json({ ok: true });
   },
 
