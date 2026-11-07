@@ -202,31 +202,90 @@ async function rangs(env, tableCle, pincabId, score) {
   return { pincab: (surPincab?.n || 0) + 1, tous: (surTous?.n || 0) + 1 };
 }
 
-async function envoyerPushScores(env, payload) {
+// NOUVEAU : notifications dans la langue de chaque téléphone. Le téléphone donne sa langue en s'abonnant ;
+// la colonne « langue » est ajoutée automatiquement à push_subscriptions (rien n'est effacé ; les anciens
+// abonnements restent en français jusqu'à la prochaine ouverture du site sur le téléphone).
+const LANGUES_PUSH = ["fr", "en", "es", "it", "de", "pt", "ja", "zh", "ru", "ar"];
+const LOCALES_PUSH = { fr: "fr-FR", en: "en-GB", es: "es-ES", it: "it-IT", de: "de-DE", pt: "pt-PT", ja: "ja-JP",
+                       zh: "zh-CN", ru: "ru-RU", ar: "ar-u-nu-latn" };
+const TEXTES_PUSH = {
+  fr: { record: "Nouveau record en ligne !", top3: "Nouveau score dans le Top 3 !", joueur: "Un joueur", points: "points", partie: "Partie" },
+  en: { record: "New online record!", top3: "New score in the Top 3!", joueur: "A player", points: "points", partie: "Game" },
+  es: { record: "¡Nuevo récord en línea!", top3: "¡Nueva puntuación en el Top 3!", joueur: "Un jugador", points: "puntos", partie: "Partida" },
+  it: { record: "Nuovo record online!", top3: "Nuovo punteggio nella Top 3!", joueur: "Un giocatore", points: "punti", partie: "Partita" },
+  de: { record: "Neuer Online-Rekord!", top3: "Neuer Punktestand in den Top 3!", joueur: "Ein Spieler", points: "Punkte", partie: "Spiel" },
+  pt: { record: "Novo recorde online!", top3: "Nova pontuação no Top 3!", joueur: "Um jogador", points: "pontos", partie: "Partida" },
+  ja: { record: "オンライン新記録!", top3: "トップ3に新スコア!", joueur: "プレイヤー", points: "ポイント", partie: "プレイ時間" },
+  zh: { record: "新的在线纪录!", top3: "前 3 名出现新分数!", joueur: "一位玩家", points: "分", partie: "游戏时长" },
+  ru: { record: "Новый онлайн-рекорд!", top3: "Новый результат в Топ-3!", joueur: "Игрок", points: "очков", partie: "Игра" },
+  ar: { record: "رقم قياسي جديد عبر الإنترنت!", top3: "نتيجة جديدة ضمن أفضل 3!", joueur: "لاعب", points: "نقطة", partie: "المباراة" },
+};
+function textePush(langue, n) {
+  const T = TEXTES_PUSH[langue] || TEXTES_PUSH.fr;
+  let score;
+  try { score = Number(n.score).toLocaleString(LOCALES_PUSH[langue] || "fr-FR"); } catch (_) { score = String(n.score); }
+  return {
+    title: n.place === 1 ? T.record : T.top3,
+    body: `${n.pseudo || T.joueur} (${n.initiales}) — ${n.table} : ${score} ${T.points} (#${n.place})` +
+      (n.duree ? ` · ${T.partie} ${dureeLisible(n.duree)}` : "."),
+  };
+}
+let colonneLanguePrete = false;
+async function assurerColonneLangue(env) {
+  if (colonneLanguePrete) return;
+  try {
+    await env.DB.prepare("ALTER TABLE push_subscriptions ADD COLUMN langue TEXT NOT NULL DEFAULT 'fr'").run();
+  } catch (e) {
+    if (!/duplicate column/i.test(String(e?.message || e))) throw e;   // colonne déjà là : normal
+  }
+  colonneLanguePrete = true;
+}
+
+// CORRECTIF : reçoit les données du score (plus un texte tout fait) et envoie à chaque téléphone le texte
+// dans SA langue : un envoi groupé par langue.
+async function envoyerPushScores(env, n) {
   // CORRECTIF : chaque cas est noté dans les journaux Cloudflare (avant, rien ne disait pourquoi aucune
   // notification n'arrivait sur le téléphone)
   if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) {
     console.warn(JSON.stringify({ event: "push_scores_sans_cle_vapid" }));
     return;
   }
-  const r = await env.DB.prepare("SELECT endpoint, p256dh, auth FROM push_subscriptions LIMIT 2000").all();
-  const subs = r.results || [];
+  let subs;
+  try {
+    await assurerColonneLangue(env);
+    subs = (await env.DB.prepare("SELECT endpoint, p256dh, auth, langue FROM push_subscriptions LIMIT 2000").all()).results || [];
+  } catch (e) {   // sécurité : sans la colonne, tout le monde reçoit le texte en français comme avant
+    console.warn(JSON.stringify({ event: "push_scores_sans_langue", message: String(e?.message || e) }));
+    subs = (await env.DB.prepare("SELECT endpoint, p256dh, auth FROM push_subscriptions LIMIT 2000").all()).results || [];
+  }
   if (!subs.length) {
     console.warn(JSON.stringify({ event: "push_scores_aucun_abonne" }));
     return;
   }
-  // CORRECTIF : urgency « high » : un téléphone Android ou iPhone en veille reçoit la notification tout de
-  // suite (sans priorité, le service de notifications peut attendre le réveil du téléphone).
-  const result = await sendPushBatch(subs.map((s) => ({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } })),
-    payload, { publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY,
+  const parLangue = {};
+  for (const s of subs) {
+    const l = LANGUES_PUSH.includes(s.langue) ? s.langue : "fr";
+    (parLangue[l] = parLangue[l] || []).push({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } });
+  }
+  let livres = 0;
+  const gone = [], failed = [];
+  for (const [langue, liste] of Object.entries(parLangue)) {
+    const payload = { ...textePush(langue, n), url: n.url, tag: n.tag };
+    // CORRECTIF : urgency « high » : un téléphone Android ou iPhone en veille reçoit la notification tout de
+    // suite (sans priorité, le service de notifications peut attendre le réveil du téléphone).
+    const result = await sendPushBatch(liste, payload, { publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY,
       subject: "mailto:arcadepassion42@gmail.com" }, { concurrency: 20, ttl: 3600, urgency: "high" });
-  console.log(JSON.stringify({ event: "push_scores_envoyes", abonnes: subs.length, livres: result.delivered,
-    expires: result.gone.length, echecs: result.failed.length }));   // NOUVEAU : bilan de chaque envoi
-  if (result.gone.length) {
-    const reqs = result.gone.map((endpoint) => env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?").bind(endpoint));
+    livres += result.delivered;
+    gone.push(...result.gone);
+    failed.push(...result.failed);
+  }
+  console.log(JSON.stringify({ event: "push_scores_envoyes", abonnes: subs.length, livres,
+    expires: gone.length, echecs: failed.length, langues: Object.keys(parLangue) }));   // NOUVEAU : bilan de chaque envoi
+  if (gone.length) {
+    const reqs = gone.map((endpoint) => env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?").bind(endpoint));
     for (let i = 0; i < reqs.length; i += 100) await env.DB.batch(reqs.slice(i, i + 100));
   }
-  if (result.failed.length) console.warn(JSON.stringify({ event: "push_scores_partial_failure", n: result.failed.length }));
+  if (failed.length) console.warn(JSON.stringify({ event: "push_scores_partial_failure", n: failed.length }));
 }
 
 // NOUVEAU : nom de pincab déjà utilisé par un autre pincab ?
@@ -720,11 +779,23 @@ const API = {
       if ((nombre?.n || 0) >= 5) return erreur("limite_appareils", 429);
     }
     const maintenantIso = maintenant();
-    await env.DB.prepare(
-      `INSERT INTO push_subscriptions (endpoint, carte_id, p256dh, auth, created, updated) VALUES (?, ?, ?, ?, ?, ?)
-       ON CONFLICT(endpoint) DO UPDATE SET carte_id = excluded.carte_id, p256dh = excluded.p256dh,
-       auth = excluded.auth, updated = excluded.updated`)
-      .bind(endpoint, carte.id, p256dh, auth, maintenantIso, maintenantIso).run();
+    // NOUVEAU : langue du site sur ce téléphone, pour lui envoyer les notifications dans sa langue
+    const langue = LANGUES_PUSH.includes(corps.langue) ? corps.langue : "fr";
+    try {
+      await assurerColonneLangue(env);
+      await env.DB.prepare(
+        `INSERT INTO push_subscriptions (endpoint, carte_id, p256dh, auth, created, updated, langue) VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(endpoint) DO UPDATE SET carte_id = excluded.carte_id, p256dh = excluded.p256dh,
+         auth = excluded.auth, updated = excluded.updated, langue = excluded.langue`)
+        .bind(endpoint, carte.id, p256dh, auth, maintenantIso, maintenantIso, langue).run();
+    } catch (e) {   // sécurité : sans la colonne « langue », l'abonnement est enregistré comme avant
+      console.warn(JSON.stringify({ event: "push_abonnement_sans_langue", message: String(e?.message || e) }));
+      await env.DB.prepare(
+        `INSERT INTO push_subscriptions (endpoint, carte_id, p256dh, auth, created, updated) VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(endpoint) DO UPDATE SET carte_id = excluded.carte_id, p256dh = excluded.p256dh,
+         auth = excluded.auth, updated = excluded.updated`)
+        .bind(endpoint, carte.id, p256dh, auth, maintenantIso, maintenantIso).run();
+    }
     return json({ ok: true });
   },
 
@@ -1000,14 +1071,11 @@ const API = {
         .bind(d.u, carte.id, d.pc, d.t, String(d.n || d.t).slice(0, 80), String(d.sy || "").slice(0, 12),
           Number(d.sc), initiales, places.tous, creeMs, Number(d.du) || 0).run();
       const profil = await env.DB.prepare("SELECT pseudo FROM cartes WHERE id = ?").bind(carte.id).first();
-      const titre = places.tous === 1 ? "Nouveau record en ligne !" : "Nouveau score dans le Top 3 !";
-      const duree = Number(d.du) || 0;
-      const corpsPush = `${profil?.pseudo || "Un joueur"} (${initiales}) — ${String(d.n || d.t).slice(0, 80)} : ` +
-        `${Number(d.sc).toLocaleString("fr-FR")} points (#${places.tous})` +
-        (duree ? ` · Partie ${dureeLisible(duree)}` : ".");
+      // CORRECTIF : titre et texte construits pour chaque téléphone dans sa langue (envoyerPushScores)
       // NOUVEAU : l'adresse désigne ce record précis : en ouvrant la notification, le site joue l'animation
       // du record (plein écran doré pour le joueur qui l'a fait, « alerte record » pour les autres)
-      const payload = { title: titre, body: corpsPush,
+      const payload = { pseudo: profil?.pseudo || "", initiales, table: String(d.n || d.t).slice(0, 80),
+        score: Number(d.sc), place: places.tous, duree: Number(d.du) || 0,
         url: `/table?cle=${encodeURIComponent(d.t)}&record=${encodeURIComponent(d.u)}&quand=${creeMs}`,
         tag: `score-${d.u}` };
       if (ctx && typeof ctx.waitUntil === "function") {

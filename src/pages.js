@@ -2513,7 +2513,8 @@ function pageCarte() {
         if (sub) {
           var donnees = sub.toJSON();
           api("POST", "/api/push/subscribe", { endpoint: donnees.endpoint,
-            p256dh: donnees.keys && donnees.keys.p256dh, auth: donnees.keys && donnees.keys.auth });
+            p256dh: donnees.keys && donnees.keys.p256dh, auth: donnees.keys && donnees.keys.auth,
+            langue: LANGUE });   // NOUVEAU : notifications dans la langue du site sur ce téléphone
         }
       }).catch(function () { pushEtat.textContent = T.push_erreur; });
     } else {
@@ -2547,7 +2548,8 @@ function pageCarte() {
         }
         var jsonSub = sub.toJSON();
         var resultat = await api("POST", "/api/push/subscribe", { endpoint: jsonSub.endpoint,
-          p256dh: jsonSub.keys && jsonSub.keys.p256dh, auth: jsonSub.keys && jsonSub.keys.auth });
+          p256dh: jsonSub.keys && jsonSub.keys.p256dh, auth: jsonSub.keys && jsonSub.keys.auth,
+          langue: LANGUE });   // NOUVEAU : notifications dans la langue du site sur ce téléphone
         if (!resultat.ok) throw new Error(messageErreur(resultat));
         afficherEtatPush(sub);
       } catch (e) {
@@ -3005,7 +3007,19 @@ verifierRecordNotification();   // NOUVEAU : animation du record si la page a é
 // notifications (/sw.js) a changé : il récupère ainsi les corrections (logo PincabOS…) sans se réabonner.
 try {
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.getRegistration("/").then(function (reg) { if (reg) reg.update(); }).catch(function () {});
+    navigator.serviceWorker.getRegistration("/").then(function (reg) {
+      if (!reg) return;
+      reg.update();
+      // NOUVEAU : un téléphone abonné redonne sa langue à chaque ouverture du site (changement de langue,
+      // anciens abonnements enregistrés avant la traduction des notifications)
+      if (!codeCarte() || !reg.pushManager) return;
+      reg.pushManager.getSubscription().then(function (sub) {
+        if (!sub) return;
+        var d = sub.toJSON();
+        api("POST", "/api/push/subscribe", { endpoint: d.endpoint, p256dh: d.keys && d.keys.p256dh,
+          auth: d.keys && d.keys.auth, langue: LANGUE });
+      }).catch(function () {});
+    }).catch(function () {});
   }
 } catch (e) {}
 })();
