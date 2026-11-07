@@ -1005,8 +1005,11 @@ const API = {
       const corpsPush = `${profil?.pseudo || "Un joueur"} (${initiales}) — ${String(d.n || d.t).slice(0, 80)} : ` +
         `${Number(d.sc).toLocaleString("fr-FR")} points (#${places.tous})` +
         (duree ? ` · Partie ${dureeLisible(duree)}` : ".");
+      // NOUVEAU : l'adresse désigne ce record précis : en ouvrant la notification, le site joue l'animation
+      // du record (plein écran doré pour le joueur qui l'a fait, « alerte record » pour les autres)
       const payload = { title: titre, body: corpsPush,
-        url: `/table?cle=${encodeURIComponent(d.t)}`, tag: `score-${d.u}` };
+        url: `/table?cle=${encodeURIComponent(d.t)}&record=${encodeURIComponent(d.u)}&quand=${creeMs}`,
+        tag: `score-${d.u}` };
       if (ctx && typeof ctx.waitUntil === "function") {
         ctx.waitUntil(envoyerPushScores(env, payload).catch((e) => {
           console.warn(JSON.stringify({ event: "push_scores_error", message: String(e?.message || e) }));
