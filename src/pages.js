@@ -2149,7 +2149,9 @@ function api(methode, chemin, corps) {
   var entetes = { "content-type": "application/json" };
   var code = codeCarte();
   if (code) entetes.authorization = "Bearer " + code;
-  if (window.CLE_ADMIN) entetes["x-admin-cle"] = window.CLE_ADMIN;
+  // CORRECTIF : clé encodée : une clé avec accent ou caractère spécial (é, €, emoji…) ne peut pas passer telle
+  // quelle dans un en-tête, le navigateur refusait l'envoi et la page affichait « Connexion impossible »
+  if (window.CLE_ADMIN) entetes["x-admin-cle"] = encodeURIComponent(window.CLE_ADMIN);
   return fetch(chemin, { method: methode, headers: entetes, body: corps ? JSON.stringify(corps) : undefined })
     .then(function (r) { return r.json(); })
     .catch(function () { return { ok: false, erreur: "reseau" }; });

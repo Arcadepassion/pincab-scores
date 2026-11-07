@@ -1383,7 +1383,12 @@ const API = {
 
 function adminOk(req, env) {
   const cle = req.headers.get("x-admin-cle") || "";
-  return !!env.ADMIN_CLE && env.ADMIN_CLE.length >= 12 && cle === env.ADMIN_CLE;
+  if (!env.ADMIN_CLE || env.ADMIN_CLE.length < 12) return false;
+  // CORRECTIF : la page admin envoie maintenant la clé encodée (accents, caractères spéciaux) ;
+  // une clé envoyée telle quelle (anciens outils, tests) reste acceptée
+  let decodee = cle;
+  try { decodee = decodeURIComponent(cle); } catch (_) {}
+  return cle === env.ADMIN_CLE || decodee === env.ADMIN_CLE;
 }
 
 // ------------------------------------------------------------------ pages
