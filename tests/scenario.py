@@ -1,5 +1,13 @@
-import json, hmac, hashlib, base64, time, urllib.request, uuid
+import json, hmac, hashlib, base64, sys, time, urllib.request, uuid
 BASE = "http://127.0.0.1:8787"
+# CORRECTIF : accents et « ✓ » lisibles dans la console Windows (le scénario s'arrêtait sur une erreur d'affichage)
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+# CORRECTIF : le scénario peut être relancé sur une base locale déjà remplie : pseudos et table propres à chaque essai
+ESSAI = uuid.uuid4().hex[:5]
+TABLE = "VPX:test_" + ESSAI
 
 def b64(o): return base64.urlsafe_b64encode(o).rstrip(b"=").decode()
 def signer(secret, donnees):      # exactement ce que fera PincabOS
@@ -14,20 +22,24 @@ def appel(meth, chemin, corps=None, code=None, admin=None):
     try:
         with urllib.request.urlopen(req) as r: return json.load(r)
     except urllib.error.HTTPError as e: return json.load(e)
-def score_qr(pc, ini, sc, table="VPX:afm_113b", nom="Attack from Mars"):
+def score_qr(pc, ini, sc, table=TABLE, nom="Attack from Mars"):
     return signer(pc["secret"], {"v": 1, "pc": pc["id"], "t": table, "n": nom, "sy": "VPX", "sc": sc, "i": ini,
                                  "d": "2026-11-02T13:12", "u": uuid.uuid4().hex[:20]})
 def lien_qr(pc, duree=600):
     return signer(pc["secret"], {"v": 1, "pc": pc["id"], "k": "lien", "x": int(time.time()) + duree})
-def ok(nom, cond, detail=""): print(("OK   " if cond else "ÉCHEC"), nom, detail if not cond else "")
+ECHECS = []   # CORRECTIF : le scénario se termine avec le code 1 si une vérification échoue
+def ok(nom, cond, detail=""):
+    print(("OK   " if cond else "ÉCHEC"), nom, detail if not cond else "")
+    if not cond: ECHECS.append(nom)
 
-A = appel("POST", "/api/pincab/activer", {"nom": "Pincab de Daniel"})
-B = appel("POST", "/api/pincab/activer", {"nom": "Pincab de Kris"})
+joueurs_avant = appel("GET", "/api/accueil")["stats"]["joueurs"]   # CORRECTIF : comparaison avant / après
+A = appel("POST", "/api/pincab/activer", {"nom": "Pincab de Daniel " + ESSAI})
+B = appel("POST", "/api/pincab/activer", {"nom": "Pincab de Kris " + ESSAI})
 ok("activation des pincabs", A["ok"] and B["ok"])
-dan = appel("POST", "/api/carte", {"pseudo": "Daniel", "initiales": "dan"})
-bob = appel("POST", "/api/carte", {"pseudo": "Bobby", "initiales": "BOB"})
-dan2 = appel("POST", "/api/carte", {"pseudo": "Dan l'autre", "initiales": "DAN"})
-krs = appel("POST", "/api/carte", {"pseudo": "Kris", "initiales": "KRS"})
+dan = appel("POST", "/api/carte", {"pseudo": "Daniel " + ESSAI, "initiales": "dan"})
+bob = appel("POST", "/api/carte", {"pseudo": "Bobby " + ESSAI, "initiales": "BOB"})
+dan2 = appel("POST", "/api/carte", {"pseudo": "Dan l'autre " + ESSAI, "initiales": "DAN"})
+krs = appel("POST", "/api/carte", {"pseudo": "Kris " + ESSAI, "initiales": "KRS"})
 ok("création des cartes (initiales mises en majuscules)", dan["ok"] and dan["initiales"] == "DAN", dan)
 ok("restauration avec le code de secours", appel("POST", "/api/carte/restaurer", {"code": dan["code"].lower()})["ok"])
 ok("code faux refusé", appel("POST", "/api/carte/restaurer", {"code": "AAAA-BBBB-CCCC-DDDD-EEEE-FFFF"})["erreur"] == "code_inconnu")
@@ -75,16 +87,17 @@ ok("score sans initiales refusé", appel("POST", "/api/score", {"p": p0, "g": g0
 p, g = score_qr(A, "BOB", 3120000000); appel("POST", "/api/score", {"p": p, "g": g}, bob["code"])
 p, g = score_qr(B, "KRS", 9812004500); appel("POST", "/api/score", {"p": p, "g": g}, krs["code"])
 p, g = score_qr(A, "DAN", 1000); appel("POST", "/api/score", {"p": p, "g": g}, dan["code"])   # moins bon : n'écrase pas
-t = appel("GET", "/api/table?cle=VPX:afm_113b&pc=" + A["id"])
+t = appel("GET", "/api/table?cle=" + TABLE + "&pc=" + A["id"])
 ok("classement du pincab A (meilleur score par joueur)", [l["initiales"] for l in t["lignes"]] == ["DAN", "BOB"] and t["lignes"][0]["score"] == 4875320150, t["lignes"])
-t = appel("GET", "/api/table?cle=VPX:afm_113b")
-ok("« Tous les pincabs » vide tant qu'aucun pincab n'est validé", t["lignes"] == [], t["lignes"])
+t = appel("GET", "/api/table?cle=" + TABLE)
+# CORRECTIF : le site affiche maintenant tous les pincabs non bloqués, sans attendre la validation (seul le blocage compte)
+ok("« Tous les pincabs » : visibles sans validation", [l["initiales"] for l in t["lignes"]] == ["KRS", "DAN", "BOB"], t["lignes"])
 ok("admin : mauvaise clé refusée", appel("GET", "/api/admin/pincabs", admin="nimporte")["erreur"] == "acces_refuse")
 for pc in (A, B): appel("POST", "/api/admin/pincab", {"id": pc["id"], "approuve": True, "bloque": False}, admin="cle-admin-de-test-123")
-t = appel("GET", "/api/table?cle=VPX:afm_113b")
+t = appel("GET", "/api/table?cle=" + TABLE)
 ok("après validation : KRS, DAN, BOB", [l["initiales"] for l in t["lignes"]] == ["KRS", "DAN", "BOB"], t["lignes"])
 appel("POST", "/api/admin/pincab", {"id": B["id"], "approuve": True, "bloque": True}, admin="cle-admin-de-test-123")
-t = appel("GET", "/api/table?cle=VPX:afm_113b")
+t = appel("GET", "/api/table?cle=" + TABLE)
 ok("pincab B bloqué : ses scores disparaissent", [l["initiales"] for l in t["lignes"]] == ["DAN", "BOB"], t["lignes"])
 p, g = score_qr(B, "KRS", 5)
 ok("pincab bloqué : nouveaux QR refusés", appel("POST", "/api/verifier", {"p": p, "g": g}).get("erreur") == "pincab_bloque")
@@ -93,5 +106,7 @@ ok("statut « ✓ en ligne » pour le pincab", s["en_ligne"] == [u_dan], s)
 c = appel("GET", "/api/carte", code=dan["code"])
 ok("carte de DAN : 2 scores, 1 record", c["stats"]["scores"] == 2 and c["stats"]["records"] == 1, c["stats"])
 a = appel("GET", "/api/accueil")
-ok("accueil : statistiques", a["stats"]["joueurs"] == 4, a["stats"])
+ok("accueil : 4 joueurs de plus", a["stats"]["joueurs"] == joueurs_avant + 4, a["stats"])
 print("Longueur d'un QR de score :", len(BASE.replace("http://127.0.0.1:8787", "https://pincab-scores.arcadepassion.workers.dev") + "/s?p=" + p + "&g=" + g), "caractères")
+print(f"{len(ECHECS)} échec(s)" if ECHECS else "Toutes les vérifications sont OK")
+sys.exit(1 if ECHECS else 0)

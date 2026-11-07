@@ -2865,5 +2865,12 @@ function router() {
 }
 if (!history.state) { try { history.replaceState({ pincabos: 0 }, "", location.href); } catch (e) {} }
 router();
+// CORRECTIF : à chaque ouverture du site, un téléphone abonné aux notifications vérifie si le script des
+// notifications (/sw.js) a changé : il récupère ainsi les corrections (logo PincabOS…) sans se réabonner.
+try {
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.getRegistration("/").then(function (reg) { if (reg) reg.update(); }).catch(function () {});
+  }
+} catch (e) {}
 })();
 `;

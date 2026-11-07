@@ -29,6 +29,11 @@ const MANIFEST = JSON.stringify({ id: "/", name: "PincabOS Scores", short_name: 
           { src: "/images/icone-512.png", sizes: "512x512", type: "image/png" }] });
 const SERVICE_WORKER_JS = `
 "use strict";
+// CORRECTIF : une nouvelle version de ce script prend la main tout de suite. Avant, elle attendait que
+// toutes les pages du site soient fermées : sur un téléphone (appli de l'écran d'accueil jamais vraiment
+// fermée), l'ancienne version restait active et les notifications n'avaient pas le logo PincabOS.
+self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
 self.addEventListener("push", (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch (_) {}
@@ -198,13 +203,25 @@ async function rangs(env, tableCle, pincabId, score) {
 }
 
 async function envoyerPushScores(env, payload) {
-  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return;
+  // CORRECTIF : chaque cas est noté dans les journaux Cloudflare (avant, rien ne disait pourquoi aucune
+  // notification n'arrivait sur le téléphone)
+  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) {
+    console.warn(JSON.stringify({ event: "push_scores_sans_cle_vapid" }));
+    return;
+  }
   const r = await env.DB.prepare("SELECT endpoint, p256dh, auth FROM push_subscriptions LIMIT 2000").all();
   const subs = r.results || [];
-  if (!subs.length) return;
+  if (!subs.length) {
+    console.warn(JSON.stringify({ event: "push_scores_aucun_abonne" }));
+    return;
+  }
+  // CORRECTIF : urgency « high » : un téléphone Android ou iPhone en veille reçoit la notification tout de
+  // suite (sans priorité, le service de notifications peut attendre le réveil du téléphone).
   const result = await sendPushBatch(subs.map((s) => ({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } })),
     payload, { publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY,
-      subject: "mailto:arcadepassion42@gmail.com" }, { concurrency: 20, ttl: 3600 });
+      subject: "mailto:arcadepassion42@gmail.com" }, { concurrency: 20, ttl: 3600, urgency: "high" });
+  console.log(JSON.stringify({ event: "push_scores_envoyes", abonnes: subs.length, livres: result.delivered,
+    expires: result.gone.length, echecs: result.failed.length }));   // NOUVEAU : bilan de chaque envoi
   if (result.gone.length) {
     const reqs = result.gone.map((endpoint) => env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?").bind(endpoint));
     for (let i = 0; i < reqs.length; i += 100) await env.DB.batch(reqs.slice(i, i + 100));
