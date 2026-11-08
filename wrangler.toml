@@ -18,5 +18,11 @@ migrations_dir = "./migrations"
 [assets]
 directory = "./public"
 
+# NOUVEAU : journaux du site gardés par Cloudflare (Workers Logs, quelques jours) : on peut relire après coup
+# le bilan de chaque envoi de notifications (« push_scores_envoyes » : abonnés, livrées, échecs)
+[observability]
+enabled = true
+head_sampling_rate = 1
+
 # Clé d'administration (validation / blocage des pincabs) : jamais ici, mais dans
 # Cloudflare > Workers & Pages > pincab-scores > Settings > Variables and Secrets (type « Secret »)
