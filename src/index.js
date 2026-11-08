@@ -322,6 +322,36 @@ async function nomExactWheel(nom) {
 }
 const INDEX_WHEELS_INTEGRE = new Map(WHEELS_MEDIATHEQUE.map((n) => [n.toLowerCase(), n]));
 
+// NOUVEAU : wheels envoyées par les pincabs pour les tables absentes de la médiathèque GitHub. Le site n'a
+// jamais accès aux PC : c'est PincabOS qui envoie (signée avec la clé du pincab) une petite copie de la wheel
+// d'une table qu'il a partagée, et seulement si le site ne l'a pas. Tout le monde la voit ensuite.
+const TAILLE_MAX_WHEEL = 400000;   // octets (PincabOS envoie une image réduite à 300 px, ~30 à 150 Ko)
+let tableWheelsPrete = false;
+async function assurerTableWheels(env) {
+  if (tableWheelsPrete) return;
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS wheels_pincabs (nom_norm TEXT PRIMARY KEY, nom TEXT NOT NULL, type TEXT NOT NULL,
+       image BLOB NOT NULL, pincab_id TEXT NOT NULL, ajoute TEXT NOT NULL)`).run();
+  tableWheelsPrete = true;
+}
+function nomNormalise(nom) { return String(nom || "").trim().toLowerCase(); }
+// la médiathèque (liste lue sur GitHub ou liste intégrée) a-t-elle une wheel pour ce nom ?
+function wheelDansMediatheque(nom) {
+  const cle = nomNormalise(nom);
+  return !!((indexWheels && indexWheels.has(cle)) || INDEX_WHEELS_INTEGRE.has(cle));
+}
+function typeImage(octets) {
+  if (octets.length > 8 && octets[0] === 0x89 && octets[1] === 0x50 && octets[2] === 0x4e && octets[3] === 0x47) return "image/png";
+  if (octets.length > 3 && octets[0] === 0xff && octets[1] === 0xd8 && octets[2] === 0xff) return "image/jpeg";
+  if (octets.length > 12 && String.fromCharCode(...octets.slice(0, 4)) === "RIFF" &&
+      String.fromCharCode(...octets.slice(8, 12)) === "WEBP") return "image/webp";
+  return "";
+}
+async function sha256Octets(octets) {
+  const h = await crypto.subtle.digest("SHA-256", octets);
+  return [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 // NOUVEAU : nom de pincab déjà utilisé par un autre pincab ?
 async function nomPincabPris(env, nom, saufId) {
   const r = await env.DB.prepare("SELECT 1 FROM pincabs WHERE lower(trim(nom)) = lower(?) AND id <> ?")
@@ -797,14 +827,70 @@ const API = {
   async "GET /api/wheel"(req, env, url) {
     const nom = String(url.searchParams.get("n") || "").slice(0, 200);
     const exact = await nomExactWheel(nom);
+    // NOUVEAU : absente de la médiathèque -> wheel envoyée par un pincab (si elle existe)
+    if (!wheelDansMediatheque(nom)) {
+      try {
+        await assurerTableWheels(env);
+        const w = await env.DB.prepare("SELECT type, image FROM wheels_pincabs WHERE nom_norm = ?")
+          .bind(nomNormalise(nom)).first();
+        if (w && w.image) {
+          return new Response(new Uint8Array(w.image), { headers: { "content-type": w.type,
+            "cache-control": "public, max-age=86400", "x-content-type-options": "nosniff" } });
+        }
+      } catch (e) {
+        console.warn(JSON.stringify({ event: "wheel_pincab_illisible", message: String(e?.message || e) }));
+      }
+    }
     const cible = "https://wsrv.nl/?url=" + encodeURIComponent(MEDIATHEQUE_WHEELS + encodeURIComponent(exact) + ".png") +
       "&w=300&h=300&fit=contain&output=webp";
-    // CORRECTIF : la réponse n'est gardée par le navigateur (1 jour) que si la liste GitHub a été lue. Sans elle,
-    // le nom n'est peut-être pas le bon (« Biolab » au lieu de « BioLab ») : rien n'est gardé, nouvel essai la
-    // prochaine fois (avant, le téléphone gardait 24 h le logo par défaut).
-    const garder = (indexWheels || INDEX_WHEELS_INTEGRE.has(nom.toLowerCase())) ? "public, max-age=86400" : "no-store";
+    // CORRECTIF : la réponse n'est gardée par le navigateur (1 jour) que si le nom exact est connu. Sinon rien
+    // n'est gardé : nouvel essai la prochaine fois (la wheel peut arriver plus tard depuis un pincab).
+    const garder = wheelDansMediatheque(nom) ? "public, max-age=86400" : "no-store";
     return new Response(null, { status: 302, headers: { location: cible, "cache-control": garder } });
   },
+
+  // NOUVEAU : tables partagées par ce pincab dont le site n'a aucune wheel (ni médiathèque, ni envoi d'un pincab)
+  async "GET /api/wheels/manquantes"(req, env, url) {
+    const pc = String(url.searchParams.get("pc") || "").slice(0, 40);
+    if (!pc) return json({ ok: true, tables: [] });
+    await nomExactWheel("");   // charge la liste GitHub si possible (sinon la liste intégrée suffit)
+    await assurerTableWheels(env);
+    const r = await env.DB.prepare(
+      `SELECT DISTINCT s.table_nom AS nom FROM scores s
+        WHERE s.pincab_id = ? AND trim(s.table_nom) <> ''
+          AND lower(trim(s.table_nom)) NOT IN (SELECT nom_norm FROM wheels_pincabs) LIMIT 500`).bind(pc).all();
+    const tables = (r.results || []).map((x) => x.nom).filter((n) => !wheelDansMediatheque(n)).slice(0, 20);
+    return json({ ok: true, tables });
+  },
+
+  // NOUVEAU : un pincab envoie la wheel d'une table qu'il a partagée (message signé + empreinte de l'image)
+  async "POST /api/pincab/wheel"(req, env) {
+    const corps = await lireJson(req);
+    const qr = await lireQR(env, corps.p, corps.g, "wheel");
+    if (qr.erreur) return erreur(qr.erreur);
+    const d = qr.donnees;
+    const nom = String(d.n || "").trim().slice(0, 80);
+    if (!nom || typeof d.h !== "string") return erreur("wheel_invalide");
+    let octets;
+    try { octets = b64urlDecode(String(corps.img || "")); } catch (e) { return erreur("wheel_invalide"); }
+    if (!octets.length || octets.length > TAILLE_MAX_WHEEL) return erreur("wheel_trop_grande");
+    const type = typeImage(octets);
+    if (!type) return erreur("wheel_invalide");
+    if ((await sha256Octets(octets)) !== d.h) return erreur("signature_invalide");
+    // seulement pour une table que ce pincab a vraiment partagée, et si le site n'a pas déjà sa wheel
+    const joue = await env.DB.prepare("SELECT 1 FROM scores WHERE pincab_id = ? AND lower(trim(table_nom)) = ? LIMIT 1")
+      .bind(qr.pincab.id, nomNormalise(nom)).first();
+    if (!joue) return erreur("table_inconnue", 404);
+    if (wheelDansMediatheque(nom)) return json({ ok: true, deja: true });
+    await assurerTableWheels(env);
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO wheels_pincabs (nom_norm, nom, type, image, pincab_id, ajoute) VALUES (?, ?, ?, ?, ?, ?)`)
+      .bind(nomNormalise(nom), nom, type, octets.buffer.slice(octets.byteOffset, octets.byteOffset + octets.byteLength),
+            qr.pincab.id, maintenant()).run();
+    console.log(JSON.stringify({ event: "wheel_pincab_recue", table: nom, octets: octets.length }));
+    return json({ ok: true });
+  },
+
 
   async "GET /api/push/config"(req, env) {
     return json({ ok: !!env.VAPID_PUBLIC_KEY, public_key: env.VAPID_PUBLIC_KEY || "" });
