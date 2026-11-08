@@ -1906,12 +1906,15 @@ function boutonIco(nom, texte, attrs) {
 var SON = { ctx: null, actif: lireReglage("pincabos_son") !== "0", tampons: {}, charge: false };
 // NOUVEAU : les mêmes sons que le Tableau des scores de PincabOS (dossier sounds du pincab) :
 // Option_Validation.mp3 = entrée, Option_Retour.mp3 = retour, Option_Navigation.mp3 = menus
-var FICHIERS_SONS = { entree: "/sons/validation.mp3", retour: "/sons/retour.mp3", navigation: "/sons/navigation.mp3" };
+var FICHIERS_SONS = { entree: "/sons/validation.mp3", retour: "/sons/retour.mp3", navigation: "/sons/navigation.mp3",
+  // NOUVEAU : fanfare des célébrations de PincabOS (« Wheel de navigation/Record.mp3 ») pour les animations de record
+  record: "/sons/record.mp3" };
 function chargerSons(ctx) {
   if (SON.charge || !window.fetch) return;
   SON.charge = true;
+  SON.promesses = {};   // NOUVEAU : on peut attendre la fin du chargement d'un son (fanfare des records)
   Object.keys(FICHIERS_SONS).forEach(function (cle) {
-    fetch(FICHIERS_SONS[cle]).then(function (r) { return r.arrayBuffer(); })
+    SON.promesses[cle] = fetch(FICHIERS_SONS[cle]).then(function (r) { return r.arrayBuffer(); })
       .then(function (b) { return new Promise(function (ok, ko) { ctx.decodeAudioData(b, ok, ko); }); })
       .then(function (tampon) { SON.tampons[cle] = tampon; })
       .catch(function () {});
@@ -1978,6 +1981,37 @@ function jouerSon(type) {
     for (var i = 0; i < 7; i++) note(ctx, 2093 + i * 240, t0 + 0.46 + i * 0.07, 0.09, "sine", 0.02);   // scintillement
   }
   return ctx.state === "running";
+}
+// NOUVEAU : fanfare d'une animation de record. Elle part dès que le navigateur autorise le son (pendant
+// l'animation) et s'arrête quand l'animation se ferme. Avant, un son synthétisé restait bloqué jusqu'au premier
+// toucher (celui qui fermait l'animation) : on l'entendait APRÈS l'image.
+function fanfareRecord() {
+  var f = { source: null, finie: false };
+  function lancer() {
+    if (f.finie || f.source || !SON.actif) return;
+    var ctx = contexteAudio();
+    if (!ctx || ctx.state !== "running" || !SON.tampons.record) return;
+    var s = ctx.createBufferSource(), g = ctx.createGain();
+    s.buffer = SON.tampons.record;
+    g.gain.value = 0.9;
+    s.connect(g); g.connect(ctx.destination);
+    s.start(ctx.currentTime + 0.02);
+    f.source = s;
+  }
+  f.essayer = function () {
+    if (f.finie || !SON.actif) return;
+    var ctx = contexteAudio();
+    if (!ctx) return;
+    var charge = (SON.promesses && SON.promesses.record) || Promise.resolve();
+    if (ctx.state === "running") charge.then(lancer);
+    else { try { ctx.resume().then(function () { charge.then(lancer); }, function () {}); } catch (e) {} }
+  };
+  f.joue = function () { return !!f.source; };
+  f.arreter = function () {
+    f.finie = true;
+    try { if (f.source) f.source.stop(); } catch (e) {}
+  };
+  return f;
 }
 function boutonSon() {
   var b = el("button", { type: "button", class: "son-bouton", "aria-pressed": SON.actif ? "true" : "false" });
@@ -2157,7 +2191,7 @@ function animerRecord(n, moi) {
   var record = Number(n.place) === 1;
   var scoreTxt = el("div", { class: "rec-score" }, nombre(0));
   var qui = (n.initiales ? n.pseudo + " (" + n.initiales + ")" : n.pseudo) || "?";
-  var fond, son;
+  var fond;
   if (moi) {
     var confettis = [];
     for (var i = 0; i < 46; i++) {
@@ -2177,7 +2211,6 @@ function animerRecord(n, moi) {
         scoreTxt,
         el("span", { class: "celeb-qui" }, record ? T.rec_moi_texte : t("rec_top_moi_texte", n.place)),
         el("span", { class: "celeb-fermer" }, T.toucher_fermer)));
-    son = "badge";
   } else {
     fond = el("div", { class: "alerte-rec", role: "dialog", "aria-modal": "true" },
       el("div", { class: "gyro rouge" }), el("div", { class: "gyro bleu" }),
@@ -2189,7 +2222,6 @@ function animerRecord(n, moi) {
         el("span", { class: "alerte-qui" }, record ? t("rec_autre_texte", qui) : t("rec_top_autre_texte", qui, n.place)),
         n.pincab ? el("span", { class: "petit" }, t("badge_pincab", n.pincab)) : null,
         el("span", { class: "celeb-fermer" }, T.toucher_fermer)));
-    son = "alerte";
   }
   // le score défile jusqu'à sa valeur (1,6 s)
   var cible = Number(n.score) || 0, debut = null;
@@ -2199,7 +2231,9 @@ function animerRecord(n, moi) {
     scoreTxt.textContent = nombre(Math.round(cible * e));
     if (k < 1 && fond.parentNode) requestAnimationFrame(compter);
   }
-  var sonJoue = jouerSon(son), minuterie = null;
+  // CORRECTIF : fanfare de PincabOS (Record.mp3), jouée pendant l'animation et coupée à sa fermeture
+  var fanfare = fanfareRecord(), minuterie = null;
+  fanfare.essayer();
   function rejouer() {
     fond.classList.remove("joue"); void fond.offsetWidth; fond.classList.add("joue");
     debut = null; requestAnimationFrame(compter);
@@ -2207,14 +2241,16 @@ function animerRecord(n, moi) {
   }
   function fermer() {
     clearTimeout(minuterie);
+    fanfare.arreter();
     document.removeEventListener("keydown", touche);
     fond.classList.add("sortie");
     setTimeout(function () { if (fond.parentNode) fond.parentNode.removeChild(fond); }, 350);
   }
   function touche(ev) { if (ev.key === "Escape") fermer(); }
-  // même règle que les badges : si le navigateur a bloqué le son, le premier toucher le joue et relance
+  // si le navigateur a bloqué le son, le premier toucher lance la fanfare et rejoue l'animation ; le suivant ferme
+  var relancee = false;
   fond.addEventListener("click", function () {
-    if (!sonJoue && SON.actif) { sonJoue = true; jouerSon(son); rejouer(); return; }
+    if (!fanfare.joue() && SON.actif && !relancee) { relancee = true; fanfare.essayer(); rejouer(); return; }
     fermer();
   });
   document.addEventListener("keydown", touche);
