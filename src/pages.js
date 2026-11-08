@@ -1877,8 +1877,9 @@ function secours() { if (this.getAttribute("data-secours")) return; this.setAttr
 function wheel(nomTable, classe) {
   // logo de la table pris dans la médiathèque PincabOS (GitHub), réduit à la volée ; sinon logo générique
   // CORRECTIF : passe par le site, qui retrouve le nom exact du fichier (majuscules / minuscules : « BioLab.png »)
-  // CORRECTIF : « v=3 » = nouvelle adresse : les téléphones oublient les réponses gardées par l'ancienne version
-  var source = "/api/wheel?v=3&n=" + encodeURIComponent(nomTable || "");
+  // CORRECTIF : « v=4 » = nouvelle adresse : les téléphones oublient les réponses gardées 24 h à tort par
+  // l'ancienne version (table sans wheel au moment de la visite, wheel envoyée ensuite par un pincab)
+  var source = "/api/wheel?v=4&n=" + encodeURIComponent(nomTable || "");
   return el("img", { src: source, alt: "", "aria-hidden": "true", class: "wheel" + (classe ? " " + classe : ""),
                      loading: "lazy", onerror: secours });
 }
