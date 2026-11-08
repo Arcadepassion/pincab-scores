@@ -11,6 +11,8 @@
 // =====================================================================
 import { PAGE_HTML as PAGE_BRUTE, APP_JS, APP_CSS } from "./pages.js";
 import { isPushServiceEndpoint, sendPushBatch } from "@mmmike/web-push/send";
+// NOUVEAU : liste des wheels de la médiathèque intégrée au site (régénérée par outils/generer_liste_wheels.py)
+import { WHEELS_MEDIATHEQUE } from "./wheels_mediatheque.js";
 
 // CORRECTIF : le code des pages porte une empreinte dans son adresse (/app.js?v=...) : après chaque mise à
 // jour du site, les navigateurs chargent tout de suite la nouvelle version (plus de vieille copie en cache)
@@ -312,8 +314,13 @@ async function nomExactWheel(nom) {
       console.warn(JSON.stringify({ event: "index_wheels_indisponible", message: String(e?.message || e) }));
     }
   }
-  return (indexWheels && indexWheels.get(String(nom).toLowerCase())) || nom;
+  const cle = String(nom).toLowerCase();
+  // CORRECTIF : la liste lue sur GitHub (nouvelles wheels) d'abord, sinon la liste intégrée au site. GitHub limite
+  // ses réponses (60 par heure pour tous les sites d'un même serveur Cloudflare) : sans la liste intégrée, le site
+  // essayait alors « Biolab.png » au lieu de « BioLab.png » et affichait le logo par défaut.
+  return (indexWheels && indexWheels.get(cle)) || INDEX_WHEELS_INTEGRE.get(cle) || nom;
 }
+const INDEX_WHEELS_INTEGRE = new Map(WHEELS_MEDIATHEQUE.map((n) => [n.toLowerCase(), n]));
 
 // NOUVEAU : nom de pincab déjà utilisé par un autre pincab ?
 async function nomPincabPris(env, nom, saufId) {
@@ -795,7 +802,7 @@ const API = {
     // CORRECTIF : la réponse n'est gardée par le navigateur (1 jour) que si la liste GitHub a été lue. Sans elle,
     // le nom n'est peut-être pas le bon (« Biolab » au lieu de « BioLab ») : rien n'est gardé, nouvel essai la
     // prochaine fois (avant, le téléphone gardait 24 h le logo par défaut).
-    const garder = indexWheels ? "public, max-age=86400" : "no-store";
+    const garder = (indexWheels || INDEX_WHEELS_INTEGRE.has(nom.toLowerCase())) ? "public, max-age=86400" : "no-store";
     return new Response(null, { status: 302, headers: { location: cible, "cache-control": garder } });
   },
 
