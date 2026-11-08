@@ -792,7 +792,11 @@ const API = {
     const exact = await nomExactWheel(nom);
     const cible = "https://wsrv.nl/?url=" + encodeURIComponent(MEDIATHEQUE_WHEELS + encodeURIComponent(exact) + ".png") +
       "&w=300&h=300&fit=contain&output=webp";
-    return new Response(null, { status: 302, headers: { location: cible, "cache-control": "public, max-age=86400" } });
+    // CORRECTIF : la réponse n'est gardée par le navigateur (1 jour) que si la liste GitHub a été lue. Sans elle,
+    // le nom n'est peut-être pas le bon (« Biolab » au lieu de « BioLab ») : rien n'est gardé, nouvel essai la
+    // prochaine fois (avant, le téléphone gardait 24 h le logo par défaut).
+    const garder = indexWheels ? "public, max-age=86400" : "no-store";
+    return new Response(null, { status: 302, headers: { location: cible, "cache-control": garder } });
   },
 
   async "GET /api/push/config"(req, env) {
