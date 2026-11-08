@@ -886,8 +886,11 @@ const API = {
              (SELECT s.duree_partie FROM scores s WHERE s.carte_id = m.carte_id AND s.table_cle = m.table_cle
                ORDER BY s.score DESC, s.ajoute DESC LIMIT 1) AS duree_partie
         FROM m WHERE m.carte_id = ?1 ORDER BY rang, score DESC LIMIT 300`).bind(id).all();
+    // NOUVEAU : temps de jeu total du joueur = somme des durées de ses parties partagées (pincabs validés)
     const stats = await env.DB.prepare(
-      "SELECT COUNT(*) AS scores, COUNT(DISTINCT table_cle) AS tables FROM scores WHERE carte_id = ?").bind(id).first();
+      `SELECT COUNT(*) AS scores, COUNT(DISTINCT s.table_cle) AS tables,
+              COALESCE(SUM(CASE WHEN p.bloque = 0 THEN s.duree_partie ELSE 0 END), 0) AS temps_jeu
+         FROM scores s LEFT JOIN pincabs p ON p.id = s.pincab_id WHERE s.carte_id = ?`).bind(id).first();
     const podiums = await env.DB.prepare(`${MEILLEURS_SQL}
       SELECT COUNT(*) AS n FROM m WHERE m.carte_id = ?1 AND
         (SELECT COUNT(*) FROM m m2 WHERE m2.table_cle = m.table_cle AND m2.sc > m.sc) < 3`).bind(id).first();
@@ -896,7 +899,8 @@ const API = {
         (SELECT COUNT(*) FROM m m2 WHERE m2.table_cle = m.table_cle AND m2.sc > m.sc) = 0`).bind(id).first();
     const scoresN = Number(stats?.scores) || 0, tablesN = Number(stats?.tables) || 0;
     return json({ ok: true, pseudo: carte.pseudo, initiales: carte.initiales, tables: r.results || [],
-      stats: { scores: scoresN, tables: tablesN, podiums: Number(podiums?.n) || 0, records: Number(records?.n) || 0 },
+      stats: { scores: scoresN, tables: tablesN, podiums: Number(podiums?.n) || 0, records: Number(records?.n) || 0,
+               temps_jeu: Number(stats?.temps_jeu) || 0 },   // NOUVEAU : temps de jeu total du joueur
       realisations: realisationsPour(scoresN, tablesN, Number(records?.n) || 0, Number(podiums?.n) || 0),
       recompenses: await recompensesDe(env, carte.id) });   // NOUVEAU
   },
@@ -1314,57 +1318,19 @@ const API = {
 
   async "GET /api/accueil"(req, env) {
     await nettoyerAnciensComptesSupprimes(env);   // NOUVEAU
+    // CORRECTIF : le temps de jeu partagé global et le temps de jeu par table ne sont plus affichés sur
+    // l'accueil (la durée de chaque partie reste dans « Derniers scores » et sur les fiches des joueurs)
     const stats = await env.DB.prepare(
       `SELECT (SELECT COUNT(*) FROM pincabs WHERE bloque = 0) AS pincabs,
               (SELECT COUNT(*) FROM cartes WHERE pseudo <> 'Joueur supprimé') AS joueurs,
-              (SELECT COUNT(*) FROM scores) AS scores,
-              (SELECT COALESCE(SUM(s.duree), 0) FROM sessions_pincab s JOIN pincabs p ON p.id = s.pincab_id
-                WHERE p.bloque = 0) AS temps_jeu`).first();
-    const tempsTables = await env.DB.prepare(
-      `SELECT s.table_nom,
-              (SELECT s2.table_cle FROM scores s2 JOIN pincabs p2 ON p2.id = s2.pincab_id
-                WHERE lower(trim(s2.table_nom)) = lower(trim(s.table_nom)) AND p2.bloque = 0
-                ORDER BY s2.ajoute DESC LIMIT 1) AS table_cle,
-              COALESCE(SUM(s.duree), 0) AS temps_jeu, COUNT(*) AS parties
-         FROM sessions_pincab s JOIN pincabs p ON p.id = s.pincab_id
-        WHERE p.bloque = 0 AND trim(s.table_nom) <> ''
-        GROUP BY lower(trim(s.table_nom)) ORDER BY temps_jeu DESC, s.table_nom COLLATE NOCASE LIMIT 100`).all();
-    const joueursTables = await env.DB.prepare(
-      `WITH scores_joueurs AS (
-         SELECT lower(trim(s.table_nom)) AS table_norm, c.id AS carte_id,
-                CASE WHEN c.pseudo = 'Joueur supprimé' THEN 'Anonyme' ELSE c.pseudo END AS pseudo,
-                CASE WHEN c.pseudo = 'Joueur supprimé' THEN '' ELSE s.initiales END AS initiales,
-                s.score, ROW_NUMBER() OVER (
-                  PARTITION BY lower(trim(s.table_nom)), c.id ORDER BY s.score DESC, s.ajoute DESC, s.id DESC
-                ) AS meilleur_numero
-           FROM scores s JOIN cartes c ON c.id = s.carte_id JOIN pincabs p ON p.id = s.pincab_id
-          WHERE p.bloque = 0 AND trim(s.table_nom) <> ''
-       ), joueurs_classes AS (
-         SELECT table_norm, pseudo, initiales,
-                ROW_NUMBER() OVER (PARTITION BY table_norm ORDER BY score DESC, pseudo COLLATE NOCASE) AS numero,
-                COUNT(*) OVER (PARTITION BY table_norm) AS total
-           FROM scores_joueurs WHERE meilleur_numero = 1
-       )
-       SELECT table_norm, pseudo, initiales, total FROM joueurs_classes WHERE numero <= 5`).all();
-    const joueursParTable = new Map();
-    for (const j of joueursTables.results || []) {
-      const cleTable = j.table_norm;
-      if (!joueursParTable.has(cleTable)) joueursParTable.set(cleTable, { joueurs: [], total: Number(j.total) || 0 });
-      joueursParTable.get(cleTable).joueurs.push({ pseudo: j.pseudo, initiales: j.initiales || "" });
-    }
+              (SELECT COUNT(*) FROM scores) AS scores`).first();
     const r = await env.DB.prepare(
       `SELECT s.table_cle, s.table_nom, s.systeme, s.score, s.duree_partie, s.initiales, s.ajoute, p.nom AS pincab
          FROM scores s JOIN pincabs p ON p.id = s.pincab_id
         WHERE p.bloque = 0 ORDER BY s.ajoute DESC LIMIT 20`).all();
     const derniers = [];
     for (const s of r.results || []) derniers.push({ ...s, place: (await rangs(env, s.table_cle, "", s.score)).tous });
-    const tempsAvecJoueurs = (tempsTables.results || []).map((table) => {
-      const nomNormalise = String(table.table_nom || "").trim().replace(/[A-Z]/g, (c) => c.toLowerCase());
-      const infos = joueursParTable.get(nomNormalise) ||
-        { joueurs: [], total: 0 };
-      return { ...table, joueurs: infos.joueurs, nb_joueurs_identifies: infos.total };
-    });
-    return json({ ok: true, stats, temps_tables: tempsAvecJoueurs, derniers });
+    return json({ ok: true, stats, derniers });
   },
 
   async "GET /api/recherche"(req, env, url) {
