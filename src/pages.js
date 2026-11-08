@@ -1876,8 +1876,8 @@ function ico(nom, classe) {
 function secours() { if (this.getAttribute("data-secours")) return; this.setAttribute("data-secours", "1"); this.src = "/images/table.png"; }
 function wheel(nomTable, classe) {
   // logo de la table pris dans la médiathèque PincabOS (GitHub), réduit à la volée ; sinon logo générique
-  var source = "https://wsrv.nl/?url=" + encodeURIComponent(MEDIATHEQUE + encodeURIComponent(nomTable || "") + ".png") +
-    "&w=300&h=300&fit=contain&output=webp";
+  // CORRECTIF : passe par le site, qui retrouve le nom exact du fichier (majuscules / minuscules : « BioLab.png »)
+  var source = "/api/wheel?n=" + encodeURIComponent(nomTable || "");
   return el("img", { src: source, alt: "", "aria-hidden": "true", class: "wheel" + (classe ? " " + classe : ""),
                      loading: "lazy", onerror: secours });
 }

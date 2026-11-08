@@ -288,6 +288,33 @@ async function envoyerPushScores(env, n) {
   if (failed.length) console.warn(JSON.stringify({ event: "push_scores_partial_failure", n: failed.length }));
 }
 
+// NOUVEAU : wheels de la médiathèque GitHub sans souci de majuscules / minuscules. GitHub distingue la casse
+// (« BioLab.png » n'est pas « Biolab.png ») : la liste des fichiers du dossier wheel/ est lue (gardée 6 h) et
+// donne le nom exact. Si GitHub ne répond pas, le nom est essayé tel quel (comme avant).
+const ARBRE_WHEELS = "https://api.github.com/repos/Arcadepassion/pincab_os-media-library/git/trees/main:wheel";
+const MEDIATHEQUE_WHEELS = "raw.githubusercontent.com/Arcadepassion/pincab_os-media-library/main/wheel/";
+let indexWheels = null, indexWheelsMs = 0, echecWheelsMs = 0;
+async function nomExactWheel(nom) {
+  const t = Date.now();
+  if ((!indexWheels || t - indexWheelsMs > 6 * 3600000) && t - echecWheelsMs > 600000) {
+    try {
+      const r = await fetch(ARBRE_WHEELS, { headers: { "user-agent": "pincab-scores", accept: "application/vnd.github+json" },
+                                           cf: { cacheTtl: 21600, cacheEverything: true } });
+      if (!r.ok) throw new Error("GitHub " + r.status);
+      const m = new Map();
+      for (const e of (await r.json()).tree || []) {
+        if (/\.png$/i.test(e.path)) m.set(e.path.slice(0, -4).toLowerCase(), e.path.slice(0, -4));
+      }
+      indexWheels = m;
+      indexWheelsMs = t;
+    } catch (e) {
+      echecWheelsMs = t;
+      console.warn(JSON.stringify({ event: "index_wheels_indisponible", message: String(e?.message || e) }));
+    }
+  }
+  return (indexWheels && indexWheels.get(String(nom).toLowerCase())) || nom;
+}
+
 // NOUVEAU : nom de pincab déjà utilisé par un autre pincab ?
 async function nomPincabPris(env, nom, saufId) {
   const r = await env.DB.prepare("SELECT 1 FROM pincabs WHERE lower(trim(nom)) = lower(?) AND id <> ?")
@@ -757,6 +784,15 @@ const API = {
           AND (? = '' OR n.pincab_id <> ?) AND p.bloque = 0
         ORDER BY n.cree_ms, n.score_id LIMIT 50`).bind(depuis, depuis, apres, pc, pc).all();
     return json({ ok: true, notifications: r.results || [], maintenant: Date.now() });
+  },
+
+  // NOUVEAU : logo (wheel) d'une table : redirige vers l'image réduite, avec le nom de fichier exact
+  async "GET /api/wheel"(req, env, url) {
+    const nom = String(url.searchParams.get("n") || "").slice(0, 200);
+    const exact = await nomExactWheel(nom);
+    const cible = "https://wsrv.nl/?url=" + encodeURIComponent(MEDIATHEQUE_WHEELS + encodeURIComponent(exact) + ".png") +
+      "&w=300&h=300&fit=contain&output=webp";
+    return new Response(null, { status: 302, headers: { location: cible, "cache-control": "public, max-age=86400" } });
   },
 
   async "GET /api/push/config"(req, env) {
