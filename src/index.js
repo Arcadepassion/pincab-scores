@@ -1519,6 +1519,29 @@ const API = {
     return json({ ok: true });
   },
 
+  // NOUVEAU (TEMPORAIRE, redemandé par Daniel le 09/11/2026 — À RETIRER juste après le test) : notification de test
+  // envoyée seulement aux téléphones abonnés de la carte dont le pseudo est donné. Réservée à l'administrateur.
+  async "POST /api/admin/push-essai"(req, env) {
+    if (!adminOk(req, env)) return erreur("acces_refuse", 403);
+    if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return erreur("push_non_configure", 500);
+    const corps = await lireJson(req);
+    const pseudo = String(corps.pseudo || "").trim().slice(0, 24);
+    if (!pseudo) return erreur("requete_invalide", 400);
+    const r = await env.DB.prepare(
+      `SELECT s.endpoint, s.p256dh, s.auth FROM push_subscriptions s JOIN cartes c ON c.id = s.carte_id
+        WHERE lower(c.pseudo) = lower(?) LIMIT 10`).bind(pseudo).all();
+    const subs = r.results || [];
+    if (!subs.length) return json({ ok: true, abonnes: 0, livres: 0, echecs: 0 });
+    const resultat = await sendPushBatch(subs.map((s) => ({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } })),
+      { title: "Test PincabOS", body: "Si tu lis ceci avec le logo PincabOS, les notifications fonctionnent !",
+        url: "/", tag: "pincab-essai" },
+      { publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY, subject: "mailto:arcadepassion42@gmail.com" },
+      { concurrency: 5, ttl: 600, urgency: "high" });
+    console.log(JSON.stringify({ event: "push_essai", abonnes: subs.length, livres: resultat.delivered,
+      echecs: resultat.failed.length }));
+    return json({ ok: true, abonnes: subs.length, livres: resultat.delivered, echecs: resultat.failed.length });
+  },
+
   async "POST /api/admin/pincab"(req, env) {
     if (!adminOk(req, env)) return erreur("acces_refuse", 403);
     const corps = await lireJson(req);

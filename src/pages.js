@@ -2944,6 +2944,18 @@ function pageAdmin() {
       if (!r.ok) { ajouter(zone, blocErreur(messageErreur(r))); return; }
       // NOUVEAU : confirmation visible (avant, une clé correcte avec une liste vide n'affichait rien)
       ajouter(zone, el("div", { class: "badge", style: "align-self:flex-start" }, ico("valide", "petite"), t("cle_ok", r.pincabs.length)));
+      // NOUVEAU (TEMPORAIRE — À RETIRER après le test de Daniel) : notification de test vers ses téléphones
+      var pseudoEssai = el("input", { value: "ArcadePassion", maxlength: "24", "aria-label": "Pseudo" });
+      var retourEssai = el("div", { class: "petit", "aria-live": "polite" });
+      ajouter(zone, el("div", { class: "bloc", style: "padding:12px" }, el("b", {}, "Test des notifications (temporaire)"),
+        el("div", { class: "champ" }, el("label", {}, "Pseudo du joueur"), pseudoEssai), retourEssai,
+        el("button", { type: "button", onclick: function () {
+          retourEssai.textContent = "Envoi…";
+          api("POST", "/api/admin/push-essai", { pseudo: pseudoEssai.value }).then(function (x) {
+            retourEssai.textContent = x.ok ? ("Téléphones abonnés : " + x.abonnes + " · livrées : " + x.livres +
+              " · échecs : " + x.echecs) : messageErreur(x);
+          });
+        } }, "Envoyer une notification de test")));
       if (!r.pincabs.length) ajouter(zone, el("div", { class: "vide" }, T.aucun_pincab_admin));
       r.pincabs.forEach(function (pc) {
         function maj(approuve, bloque) { api("POST", "/api/admin/pincab", { id: pc.id, approuve: approuve, bloque: bloque }).then(charger); }
