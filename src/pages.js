@@ -187,8 +187,8 @@ border-radius:12px;padding:14px;text-align:center;word-break:break-all;user-sele
 .carte-joueur{border-radius:20px;padding:2px;background:linear-gradient(135deg,#22D3EE,#7C5CFF 45%,#FF3DA6,#FFC83D);background-size:300% 300%}
 .carte-joueur>div{border-radius:18px;background:linear-gradient(160deg,#13204D,#0A1029 70%);padding:18px;display:flex;flex-direction:column;gap:14px}
 .ini{font-family:Anton,Impact,sans-serif;font-size:40px;color:var(--cyan2);text-shadow:0 0 16px rgba(34,211,238,.6);letter-spacing:2px;line-height:1}
-.avatar{width:38px;height:38px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid var(--cyan2);box-shadow:0 0 10px rgba(34,211,238,.45);background:#0A1029;vertical-align:middle}
-.avatar.grand{width:88px;height:88px;border-width:3px;box-shadow:0 0 18px rgba(34,211,238,.6)}
+.avatar{width:38px;height:38px;border-radius:9px;object-fit:contain;flex-shrink:0;border:2px solid var(--cyan2);box-shadow:0 0 10px rgba(34,211,238,.45);background:#0A1029;vertical-align:middle;padding:1px}
+.avatar.grand{width:88px;height:88px;border-radius:18px;border-width:3px;box-shadow:0 0 18px rgba(34,211,238,.6);padding:3px}
 .nom-avatar{display:inline-flex;align-items:center;gap:8px;min-width:0}
 .tete-joueur{display:flex;align-items:center;gap:14px}
 .ini.m-txt{margin-bottom:.62em}
@@ -2496,15 +2496,18 @@ function blocAvatar(r) {
     lecteur.onload = function () {
       // GIF / WebP / AVIF (animés ou non) pas trop lourds : envoyés tels quels, l'animation est gardée
       if (["image/gif", "image/webp", "image/avif"].indexOf(f.type) >= 0 && f.size <= 1150000) { envoyer(lecteur.result); return; }
-      // sinon (photo, PNG, JPEG…) : recadrée au carré et réduite à 256 × 256
+      // sinon (photo, PNG, JPEG…) : réduite à 256 × 256 au plus
+      // CORRECTIF : image ENTIÈRE gardée (plus de recadrage), centrée sur un fond transparent
       var img = new Image();
       img.onload = function () {
-        var cote = Math.min(img.naturalWidth, img.naturalHeight);
+        var echelle = Math.min(256 / img.naturalWidth, 256 / img.naturalHeight, 1);
+        var largeur = Math.max(1, Math.round(img.naturalWidth * echelle));
+        var hauteur = Math.max(1, Math.round(img.naturalHeight * echelle));
         var c = document.createElement("canvas");
         c.width = 256; c.height = 256;
-        c.getContext("2d").drawImage(img, (img.naturalWidth - cote) / 2, (img.naturalHeight - cote) / 2, cote, cote, 0, 0, 256, 256);
+        c.getContext("2d").drawImage(img, (256 - largeur) / 2, (256 - hauteur) / 2, largeur, hauteur);
         var donnees = c.toDataURL("image/webp", 0.88);
-        if (donnees.indexOf("data:image/webp") !== 0) donnees = c.toDataURL("image/jpeg", 0.9);
+        if (donnees.indexOf("data:image/webp") !== 0) donnees = c.toDataURL("image/png");   // garde la transparence
         envoyer(donnees);
       };
       img.onerror = function () { retourAvatar.textContent = t("erreurs.avatar_invalide"); };
