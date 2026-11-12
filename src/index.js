@@ -335,6 +335,56 @@ async function assurerTableWheels(env) {
   tableWheelsPrete = true;
 }
 function nomNormalise(nom) { return String(nom || "").trim().toLowerCase(); }
+
+// NOUVEAU : images de profil des joueurs (choisies dans le Setup du pincab ou sur la page « Ma carte » du
+// téléphone). Une image par profil, publiée tout de suite ; l'administrateur peut la retirer depuis /admin.
+const TAILLE_MAX_AVATAR = 1200000;   // octets (PincabOS envoie 256 × 256 px ; un GIF animé de téléphone peut être plus lourd)
+let tableAvatarsPrete = false;
+async function assurerTableAvatars(env) {
+  if (tableAvatarsPrete) return;
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS avatars (carte_id TEXT PRIMARY KEY, type TEXT NOT NULL, image BLOB NOT NULL,
+       version TEXT NOT NULL, maj TEXT NOT NULL)`).run();
+  tableAvatarsPrete = true;
+}
+// PNG, JPEG, WebP (comme les wheels) + GIF et AVIF
+function typeAvatar(octets) {
+  const type = typeImage(octets);
+  if (type) return type;
+  if (octets.length > 6 && String.fromCharCode(...octets.slice(0, 6)).match(/^GIF8[79]a$/)) return "image/gif";
+  if (octets.length > 12 && String.fromCharCode(...octets.slice(4, 8)) === "ftyp" &&
+      ["avif", "avis"].includes(String.fromCharCode(...octets.slice(8, 12)))) return "image/avif";
+  return "";
+}
+// ajoute « av » (version de l'image de profil, ou null) à chaque élément d'une liste qui a un carte_id
+async function ajouterAvatars(env, liste, cle = "carte_id") {
+  const ids = [...new Set((liste || []).map((x) => x && x[cle]).filter(Boolean))];
+  const versions = {};
+  if (ids.length) {
+    try {
+      await assurerTableAvatars(env);
+      for (let i = 0; i < ids.length; i += 90) {
+        const lot = ids.slice(i, i + 90);
+        const r = await env.DB.prepare(
+          `SELECT carte_id, version FROM avatars WHERE carte_id IN (${lot.map(() => "?").join(",")})`).bind(...lot).all();
+        for (const a of r.results || []) versions[a.carte_id] = a.version;
+      }
+    } catch (e) {
+      console.warn(JSON.stringify({ event: "avatars_illisibles", message: String(e?.message || e) }));
+    }
+  }
+  for (const x of liste || []) if (x) x.av = versions[x[cle]] || null;
+  return liste;
+}
+async function versionAvatar(env, carteId) {
+  try {
+    await assurerTableAvatars(env);
+    const a = await env.DB.prepare("SELECT version FROM avatars WHERE carte_id = ?").bind(carteId).first();
+    return a?.version || null;
+  } catch (e) {
+    return null;
+  }
+}
 // la médiathèque (liste lue sur GitHub ou liste intégrée) a-t-elle une wheel pour ce nom ?
 function wheelDansMediatheque(nom) {
   const cle = nomNormalise(nom);
@@ -746,7 +796,7 @@ async function podium(env) {
                  realisations: realisationsPour(Number(x.nb_scores) || 0, Number(x.tables) || 0,
                                                 Number(x.records) || 0, Number(x.podiums) || 0) });
   }
-  return liste;
+  return await ajouterAvatars(env, liste);   // NOUVEAU : images de profil
 }
 
 // NOUVEAU : effacement complet de profils : scores, scores en vérification, alertes, liens, notifications,
@@ -757,10 +807,11 @@ async function effacerCartes(env, ids) {
   await assurerTableBadges(env);
   await assurerTableRecompenses(env);
   await assurerTableMissions(env);
+  await assurerTableAvatars(env);   // NOUVEAU : l'image de profil part avec le profil
   const ops = [];
   for (const id of ids) {
     for (const table of ["scores", "scores_suspects", "score_notifications", "liens", "push_subscriptions",
-                         "badges_obtenus", "recompenses", "missions_reussies"]) {
+                         "badges_obtenus", "recompenses", "missions_reussies", "avatars"]) {
       ops.push(env.DB.prepare(`DELETE FROM ${table} WHERE carte_id = ?`).bind(id));
     }
     ops.push(env.DB.prepare("DELETE FROM cartes WHERE id = ?").bind(id));
@@ -997,6 +1048,7 @@ const API = {
     const joueurs = (r.results || []).map((j) => ({ ...j,
       realisations: realisationsPour(Number(j.nb_scores) || 0, Number(j.nb_tables) || 0,
                                       Number(j.nb_records) || 0, Number(j.nb_podiums) || 0) }));
+    await ajouterAvatars(env, joueurs);   // NOUVEAU : images de profil
     return json({ ok: true, joueurs });
   },
 
@@ -1032,6 +1084,7 @@ const API = {
         (SELECT COUNT(*) FROM m m2 WHERE m2.table_cle = m.table_cle AND m2.sc > m.sc) = 0`).bind(id).first();
     const scoresN = Number(stats?.scores) || 0, tablesN = Number(stats?.tables) || 0;
     return json({ ok: true, pseudo: carte.pseudo, initiales: carte.initiales, tables: r.results || [],
+      av: await versionAvatar(env, carte.id),   // NOUVEAU : image de profil
       stats: { scores: scoresN, tables: tablesN, podiums: Number(podiums?.n) || 0, records: Number(records?.n) || 0,
                temps_jeu: Number(stats?.temps_jeu) || 0 },   // NOUVEAU : temps de jeu total du joueur
       realisations: realisationsPour(scoresN, tablesN, Number(records?.n) || 0, Number(podiums?.n) || 0),
@@ -1337,6 +1390,7 @@ const API = {
     if ((stats?.scores || 0) >= 100) realisations.push({ cle: "cent_scores", progression: 100, objectif: 100 });
     return json({
       ok: true, id: carte.id, pseudo: carte.pseudo, initiales: carte.initiales, depuis: carte.cree,
+      av: await versionAvatar(env, carte.id),   // NOUVEAU : image de profil
       scores: liste, pincabs: pincabs.results || [],
       stats: { records: places?.records || 0, podiums: places?.podiums || 0,
                scores: stats?.scores || 0, tables: stats?.tables || 0 },
@@ -1368,7 +1422,52 @@ const API = {
   // Réponse : {ok, existe} ; « existe: false » = le code ne correspond plus à aucun profil.
   async "POST /api/carte/existe"(req, env) {
     const carte = await carteDe(env, req);
-    return json({ ok: true, existe: !!carte && carte.pseudo !== "Joueur supprimé" });
+    const existe = !!carte && carte.pseudo !== "Joueur supprimé";
+    return json({ ok: true, existe, av: existe ? await versionAvatar(env, carte.id) : null });   // NOUVEAU : image
+  },
+
+  // NOUVEAU : image de profil envoyée par le joueur (page « Ma carte ») ou par le Setup de son pincab.
+  // Corps : {img: base64url}. PNG, JPEG, GIF, WebP ou AVIF, 1,2 Mo maximum. Publiée tout de suite.
+  async "POST /api/carte/avatar"(req, env) {
+    const carte = await carteDe(env, req);
+    if (!carte || carte.pseudo === "Joueur supprimé") return erreur("carte_requise", 401);
+    const corps = await lireJson(req);
+    let octets;
+    try { octets = b64urlDecode(String(corps.img || "")); } catch (e) { return erreur("avatar_invalide"); }
+    if (!octets.length) return erreur("avatar_invalide");
+    if (octets.length > TAILLE_MAX_AVATAR) return erreur("avatar_trop_lourde");
+    const type = typeAvatar(octets);
+    if (!type) return erreur("avatar_invalide");
+    await assurerTableAvatars(env);
+    const version = Date.now().toString(36);
+    await env.DB.prepare(
+      `INSERT INTO avatars (carte_id, type, image, version, maj) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(carte_id) DO UPDATE SET type = excluded.type, image = excluded.image,
+         version = excluded.version, maj = excluded.maj`)
+      .bind(carte.id, type, octets.buffer.slice(octets.byteOffset, octets.byteOffset + octets.byteLength),
+            version, maintenant()).run();
+    console.log(JSON.stringify({ event: "avatar_recu", carte: carte.id, type, octets: octets.length }));
+    return json({ ok: true, av: version });
+  },
+
+  // NOUVEAU : le joueur (ou le Setup) retire son image de profil
+  async "POST /api/carte/avatar/retirer"(req, env) {
+    const carte = await carteDe(env, req);
+    if (!carte) return erreur("carte_requise", 401);
+    await assurerTableAvatars(env);
+    await env.DB.prepare("DELETE FROM avatars WHERE carte_id = ?").bind(carte.id).run();
+    return json({ ok: true });
+  },
+
+  // NOUVEAU : image de profil d'un joueur (gardée un an par le navigateur quand la version est donnée)
+  async "GET /api/avatar"(req, env, url) {
+    const id = String(url.searchParams.get("id") || "").slice(0, 40);
+    await assurerTableAvatars(env);
+    const a = id ? await env.DB.prepare("SELECT type, image, version FROM avatars WHERE carte_id = ?").bind(id).first() : null;
+    if (!a || !a.image) return new Response("", { status: 404, headers: { "cache-control": "no-store" } });
+    const garder = url.searchParams.get("v") === a.version ? "public, max-age=31536000, immutable" : "no-cache";
+    return new Response(new Uint8Array(a.image), { headers: { "content-type": a.type, "cache-control": garder,
+      "x-content-type-options": "nosniff" } });
   },
 
   async "POST /api/carte/pseudo"(req, env) {
@@ -1446,7 +1545,8 @@ const API = {
       .bind(...(vue === "pincab" ? [nomTable, pc] : [nomTable])).first();
     const pincab = pc ? await env.DB.prepare("SELECT nom FROM pincabs WHERE id = ?").bind(pc).first() : null;
     return json({ ok: true, cle, table: nomTable, systeme: nom?.systeme || "", vue,
-                  pincab: pincab?.nom || "", temps_jeu: Number(temps?.temps_jeu) || 0, lignes: r.results || [] });
+                  pincab: pincab?.nom || "", temps_jeu: Number(temps?.temps_jeu) || 0,
+                  lignes: await ajouterAvatars(env, r.results || []) });   // NOUVEAU : images de profil
   },
 
   async "GET /api/accueil"(req, env) {
@@ -1486,6 +1586,24 @@ const API = {
   },
 
   // NOUVEAU : scores mis en quarantaine par la vérification automatique
+  // NOUVEAU : images de profil récentes (publiées tout de suite) : l'administrateur peut en retirer une
+  async "GET /api/admin/avatars"(req, env) {
+    if (!adminOk(req, env)) return erreur("acces_refuse", 403);
+    await assurerTableAvatars(env);
+    const r = await env.DB.prepare(
+      `SELECT a.carte_id, a.version AS av, a.maj, c.pseudo, c.initiales FROM avatars a
+         JOIN cartes c ON c.id = a.carte_id ORDER BY a.maj DESC LIMIT 60`).all();
+    return json({ ok: true, avatars: r.results || [] });
+  },
+  async "POST /api/admin/avatar/retirer"(req, env) {
+    if (!adminOk(req, env)) return erreur("acces_refuse", 403);
+    const corps = await lireJson(req);
+    await assurerTableAvatars(env);
+    await env.DB.prepare("DELETE FROM avatars WHERE carte_id = ?").bind(String(corps.id || "")).run();
+    console.log(JSON.stringify({ event: "avatar_retire_admin", carte: String(corps.id || "") }));
+    return json({ ok: true });
+  },
+
   async "GET /api/admin/suspects"(req, env) {
     if (!adminOk(req, env)) return erreur("acces_refuse", 403);
     await assurerTableSuspects(env);

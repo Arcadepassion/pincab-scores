@@ -187,6 +187,10 @@ border-radius:12px;padding:14px;text-align:center;word-break:break-all;user-sele
 .carte-joueur{border-radius:20px;padding:2px;background:linear-gradient(135deg,#22D3EE,#7C5CFF 45%,#FF3DA6,#FFC83D);background-size:300% 300%}
 .carte-joueur>div{border-radius:18px;background:linear-gradient(160deg,#13204D,#0A1029 70%);padding:18px;display:flex;flex-direction:column;gap:14px}
 .ini{font-family:Anton,Impact,sans-serif;font-size:40px;color:var(--cyan2);text-shadow:0 0 16px rgba(34,211,238,.6);letter-spacing:2px;line-height:1}
+.avatar{width:38px;height:38px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid var(--cyan2);box-shadow:0 0 10px rgba(34,211,238,.45);background:#0A1029;vertical-align:middle}
+.avatar.grand{width:88px;height:88px;border-width:3px;box-shadow:0 0 18px rgba(34,211,238,.6)}
+.nom-avatar{display:inline-flex;align-items:center;gap:8px;min-width:0}
+.tete-joueur{display:flex;align-items:center;gap:14px}
 .ini.m-txt{margin-bottom:.62em}
 .ini.m-txt::after{margin-top:-.12em;transform:scaleY(-1);transform-origin:center}
 .trois{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
@@ -262,6 +266,8 @@ var TEXTES = {
   "initiales_diff": "Ce score a été fait avec les initiales {}, ta carte a les initiales {}. Seule la carte {} de ce pincab peut le récupérer.",
   "sans_initiales": "Ce score n'a pas d'initiales : il ne peut pas être mis en ligne.",
   "erreurs": {
+   "avatar_invalide": "Cette image n'est pas lisible. Choisis un PNG, JPEG, GIF, WebP ou AVIF.",
+   "avatar_trop_lourde": "Image trop lourde (1,2 Mo maximum). Choisis-en une plus petite.",
    "qr_illisible": "Ce QR code n'est pas un QR PincabOS valide.",
    "signature_invalide": "QR code refusé : il n'a pas été créé par un pincab PincabOS.",
    "pincab_inconnu": "Ce pincab n'est pas enregistré.",
@@ -315,6 +321,16 @@ var TEXTES = {
   "retour_page": "Retour à la page précédente",
   "pseudo_modifier": "Modifier le pseudo",
   "pseudo_enregistre": "Pseudo enregistré.",
+  "avatar_titre": "Image de profil",
+  "avatar_aide": "PNG, JPEG, GIF, WebP ou AVIF (les GIF animés gardent leur animation). Elle s'affiche à côté de ton pseudo sur le site et sur les pincabs.",
+  "avatar_choisir": "Choisir une image",
+  "avatar_retirer": "Retirer l'image",
+  "avatar_envoi": "Envoi de l'image…",
+  "avatar_enregistre": "Image enregistrée.",
+  "avatar_retiree": "Image retirée.",
+  "admin_avatars_titre": "Images de profil",
+  "admin_avatars_aide": "Publiées tout de suite. Retire une image choquante ou qui n'est pas la bonne.",
+  "admin_avatar_retirer": "Retirer l'image",
   "delier": "Délier",
   "delier_confirme": "Délier ce pincab ? Les anciens scores restent dans les classements.",
   "compte_supprimer": "Supprimer mon compte",
@@ -416,6 +432,8 @@ var TEXTES = {
   "initiales_diff": "This score was made with the initials {}, your card has the initials {}. Only card {} of this pincab can claim it.",
   "sans_initiales": "This score has no initials: it cannot be put online.",
   "erreurs": {
+   "avatar_invalide": "This picture can't be read. Choose a PNG, JPEG, GIF, WebP or AVIF.",
+   "avatar_trop_lourde": "Picture too large (1.2 MB maximum). Choose a smaller one.",
    "qr_illisible": "This is not a valid PincabOS QR code.",
    "signature_invalide": "QR code refused: it was not created by a PincabOS pincab.",
    "pincab_inconnu": "This pincab is not registered.",
@@ -469,6 +487,16 @@ var TEXTES = {
   "retour_page": "Back to the previous page",
   "pseudo_modifier": "Change nickname",
   "pseudo_enregistre": "Nickname saved.",
+  "avatar_titre": "Profile picture",
+  "avatar_aide": "PNG, JPEG, GIF, WebP or AVIF (animated GIFs keep their animation). It is shown next to your nickname on the site and on the pincabs.",
+  "avatar_choisir": "Choose a picture",
+  "avatar_retirer": "Remove the picture",
+  "avatar_envoi": "Sending the picture…",
+  "avatar_enregistre": "Picture saved.",
+  "avatar_retiree": "Picture removed.",
+  "admin_avatars_titre": "Profile pictures",
+  "admin_avatars_aide": "Published right away. Remove a shocking or wrong picture.",
+  "admin_avatar_retirer": "Remove the picture",
   "delier": "Unlink",
   "delier_confirme": "Unlink this pincab? Existing scores stay in the leaderboards.",
   "compte_supprimer": "Delete my account",
@@ -570,6 +598,8 @@ var TEXTES = {
   "initiales_diff": "Esta puntuación se hizo con las iniciales {}, tu tarjeta tiene las iniciales {}. Solo la tarjeta {} de este pincab puede recuperarla.",
   "sans_initiales": "Esta puntuación no tiene iniciales: no se puede poner en línea.",
   "erreurs": {
+   "avatar_invalide": "Esta imagen no se puede leer. Elige un PNG, JPEG, GIF, WebP o AVIF.",
+   "avatar_trop_lourde": "Imagen demasiado pesada (1,2 MB como máximo). Elige una más pequeña.",
    "qr_illisible": "Este código QR no es un QR PincabOS válido.",
    "signature_invalide": "Código QR rechazado: no lo ha creado un pincab PincabOS.",
    "pincab_inconnu": "Este pincab no está registrado.",
@@ -623,6 +653,16 @@ var TEXTES = {
   "retour_page": "Volver a la página anterior",
   "pseudo_modifier": "Cambiar el seudónimo",
   "pseudo_enregistre": "Seudónimo guardado.",
+  "avatar_titre": "Imagen de perfil",
+  "avatar_aide": "PNG, JPEG, GIF, WebP o AVIF (los GIF animados conservan su animación). Se muestra junto a tu seudónimo en el sitio y en los pincabs.",
+  "avatar_choisir": "Elegir una imagen",
+  "avatar_retirer": "Quitar la imagen",
+  "avatar_envoi": "Enviando la imagen…",
+  "avatar_enregistre": "Imagen guardada.",
+  "avatar_retiree": "Imagen quitada.",
+  "admin_avatars_titre": "Imágenes de perfil",
+  "admin_avatars_aide": "Publicadas al instante. Quita una imagen chocante o equivocada.",
+  "admin_avatar_retirer": "Quitar la imagen",
   "delier": "Desvincular",
   "delier_confirme": "¿Desvincular este pincab? Las puntuaciones anteriores siguen en las clasificaciones.",
   "compte_supprimer": "Borrar mi cuenta",
@@ -724,6 +764,8 @@ var TEXTES = {
   "initiales_diff": "Questo punteggio è stato fatto con le iniziali {}, la tua carta ha le iniziali {}. Solo la carta {} di questo pincab può recuperarlo.",
   "sans_initiales": "Questo punteggio non ha iniziali: non può essere messo online.",
   "erreurs": {
+   "avatar_invalide": "Questa immagine non è leggibile. Scegli un PNG, JPEG, GIF, WebP o AVIF.",
+   "avatar_trop_lourde": "Immagine troppo pesante (massimo 1,2 MB). Scegline una più piccola.",
    "qr_illisible": "Questo QR code non è un QR PincabOS valido.",
    "signature_invalide": "QR code rifiutato: non è stato creato da un pincab PincabOS.",
    "pincab_inconnu": "Questo pincab non è registrato.",
@@ -777,6 +819,16 @@ var TEXTES = {
   "retour_page": "Torna alla pagina precedente",
   "pseudo_modifier": "Cambia pseudonimo",
   "pseudo_enregistre": "Pseudonimo salvato.",
+  "avatar_titre": "Immagine del profilo",
+  "avatar_aide": "PNG, JPEG, GIF, WebP o AVIF (le GIF animate mantengono l'animazione). Appare accanto al tuo pseudonimo sul sito e sui pincab.",
+  "avatar_choisir": "Scegli un'immagine",
+  "avatar_retirer": "Rimuovi l'immagine",
+  "avatar_envoi": "Invio dell'immagine…",
+  "avatar_enregistre": "Immagine salvata.",
+  "avatar_retiree": "Immagine rimossa.",
+  "admin_avatars_titre": "Immagini del profilo",
+  "admin_avatars_aide": "Pubblicate subito. Rimuovi un'immagine scioccante o sbagliata.",
+  "admin_avatar_retirer": "Rimuovi l'immagine",
   "delier": "Scollega",
   "delier_confirme": "Scollegare questo pincab? I vecchi punteggi restano nelle classifiche.",
   "compte_supprimer": "Elimina il mio account",
@@ -878,6 +930,8 @@ var TEXTES = {
   "initiales_diff": "Diese Punkte wurden mit den Initialen {} erzielt, deine Karte hat die Initialen {}. Nur die Karte {} dieses Pincabs kann sie übernehmen.",
   "sans_initiales": "Diese Punkte haben keine Initialen: Sie können nicht online gestellt werden.",
   "erreurs": {
+   "avatar_invalide": "Dieses Bild ist nicht lesbar. Wähle ein PNG, JPEG, GIF, WebP oder AVIF.",
+   "avatar_trop_lourde": "Bild zu groß (maximal 1,2 MB). Wähle ein kleineres.",
    "qr_illisible": "Dieser QR-Code ist kein gültiger PincabOS-QR-Code.",
    "signature_invalide": "QR-Code abgelehnt: Er wurde nicht von einem PincabOS-Pincab erstellt.",
    "pincab_inconnu": "Dieser Pincab ist nicht registriert.",
@@ -931,6 +985,16 @@ var TEXTES = {
   "retour_page": "Zurück zur vorherigen Seite",
   "pseudo_modifier": "Spitznamen ändern",
   "pseudo_enregistre": "Spitzname gespeichert.",
+  "avatar_titre": "Profilbild",
+  "avatar_aide": "PNG, JPEG, GIF, WebP oder AVIF (animierte GIFs bleiben animiert). Es erscheint neben deinem Spitznamen auf der Website und auf den Pincabs.",
+  "avatar_choisir": "Bild auswählen",
+  "avatar_retirer": "Bild entfernen",
+  "avatar_envoi": "Bild wird gesendet…",
+  "avatar_enregistre": "Bild gespeichert.",
+  "avatar_retiree": "Bild entfernt.",
+  "admin_avatars_titre": "Profilbilder",
+  "admin_avatars_aide": "Sofort veröffentlicht. Entferne ein anstößiges oder falsches Bild.",
+  "admin_avatar_retirer": "Bild entfernen",
   "delier": "Trennen",
   "delier_confirme": "Diesen Pincab trennen? Die bisherigen Punkte bleiben in den Ranglisten.",
   "compte_supprimer": "Mein Konto löschen",
@@ -1032,6 +1096,8 @@ var TEXTES = {
   "initiales_diff": "Esta pontuação foi feita com as iniciais {}, o teu cartão tem as iniciais {}. Só o cartão {} deste pincab a pode recuperar.",
   "sans_initiales": "Esta pontuação não tem iniciais: não pode ser colocada online.",
   "erreurs": {
+   "avatar_invalide": "Esta imagem não pode ser lida. Escolhe um PNG, JPEG, GIF, WebP ou AVIF.",
+   "avatar_trop_lourde": "Imagem demasiado pesada (máximo 1,2 MB). Escolhe uma mais pequena.",
    "qr_illisible": "Este código QR não é um QR PincabOS válido.",
    "signature_invalide": "Código QR recusado: não foi criado por um pincab PincabOS.",
    "pincab_inconnu": "Este pincab não está registado.",
@@ -1085,6 +1151,16 @@ var TEXTES = {
   "retour_page": "Voltar à página anterior",
   "pseudo_modifier": "Mudar a alcunha",
   "pseudo_enregistre": "Alcunha guardada.",
+  "avatar_titre": "Imagem de perfil",
+  "avatar_aide": "PNG, JPEG, GIF, WebP ou AVIF (os GIF animados mantêm a animação). Aparece ao lado da tua alcunha no site e nos pincabs.",
+  "avatar_choisir": "Escolher uma imagem",
+  "avatar_retirer": "Retirar a imagem",
+  "avatar_envoi": "A enviar a imagem…",
+  "avatar_enregistre": "Imagem guardada.",
+  "avatar_retiree": "Imagem retirada.",
+  "admin_avatars_titre": "Imagens de perfil",
+  "admin_avatars_aide": "Publicadas de imediato. Retira uma imagem chocante ou errada.",
+  "admin_avatar_retirer": "Retirar a imagem",
   "delier": "Desassociar",
   "delier_confirme": "Desassociar este pincab? As pontuações anteriores ficam nas classificações.",
   "compte_supprimer": "Apagar a minha conta",
@@ -1186,6 +1262,8 @@ var TEXTES = {
   "initiales_diff": "このスコアはイニシャル {} で記録されましたが、あなたのカードのイニシャルは {} です。このスコアを受け取れるのは、この pincab のカード {} だけです。",
   "sans_initiales": "このスコアにはイニシャルがないため、公開できません。",
   "erreurs": {
+   "avatar_invalide": "この画像は読み込めません。PNG、JPEG、GIF、WebP、AVIF を選んでください。",
+   "avatar_trop_lourde": "画像が大きすぎます（最大1.2MB）。もっと小さい画像を選んでください。",
    "qr_illisible": "この QR コードは有効な PincabOS の QR ではありません。",
    "signature_invalide": "QR コードが拒否されました:PincabOS の pincab で作成されたものではありません。",
    "pincab_inconnu": "この pincab は登録されていません。",
@@ -1239,6 +1317,16 @@ var TEXTES = {
   "retour_page": "前のページに戻る",
   "pseudo_modifier": "ニックネームを変更",
   "pseudo_enregistre": "ニックネームを保存しました。",
+  "avatar_titre": "プロフィール画像",
+  "avatar_aide": "PNG、JPEG、GIF、WebP、AVIF（アニメーションGIFは動いたまま）。サイトとピンキャブでニックネームの横に表示されます。",
+  "avatar_choisir": "画像を選ぶ",
+  "avatar_retirer": "画像を外す",
+  "avatar_envoi": "画像を送信中…",
+  "avatar_enregistre": "画像を保存しました。",
+  "avatar_retiree": "画像を外しました。",
+  "admin_avatars_titre": "プロフィール画像",
+  "admin_avatars_aide": "すぐに公開されます。不適切な画像や間違った画像は外してください。",
+  "admin_avatar_retirer": "画像を外す",
   "delier": "登録解除",
   "delier_confirme": "この pincab の登録を解除しますか?これまでのスコアはランキングに残ります。",
   "compte_supprimer": "アカウントを削除",
@@ -1340,6 +1428,8 @@ var TEXTES = {
   "initiales_diff": "此分数使用缩写 {},你的卡缩写为 {}。只有此 pincab 上的 {} 卡才能领取。",
   "sans_initiales": "此分数没有缩写,无法发布。",
   "erreurs": {
+   "avatar_invalide": "无法读取此图片。请选择 PNG、JPEG、GIF、WebP 或 AVIF。",
+   "avatar_trop_lourde": "图片太大（最大 1.2 MB）。请选择更小的图片。",
    "qr_illisible": "此二维码不是有效的 PincabOS 二维码。",
    "signature_invalide": "二维码被拒绝:它不是由 PincabOS pincab 生成的。",
    "pincab_inconnu": "此 pincab 未注册。",
@@ -1393,6 +1483,16 @@ var TEXTES = {
   "retour_page": "返回上一页",
   "pseudo_modifier": "修改昵称",
   "pseudo_enregistre": "昵称已保存。",
+  "avatar_titre": "头像",
+  "avatar_aide": "PNG、JPEG、GIF、WebP 或 AVIF（动态 GIF 保持动画）。头像显示在网站和 pincab 上你的昵称旁边。",
+  "avatar_choisir": "选择图片",
+  "avatar_retirer": "移除图片",
+  "avatar_envoi": "正在发送图片…",
+  "avatar_enregistre": "图片已保存。",
+  "avatar_retiree": "图片已移除。",
+  "admin_avatars_titre": "头像",
+  "admin_avatars_aide": "立即发布。请移除令人不适或错误的图片。",
+  "admin_avatar_retirer": "移除图片",
   "delier": "解除绑定",
   "delier_confirme": "解除与此 pincab 的绑定?以前的分数会保留在排行榜中。",
   "compte_supprimer": "删除我的账号",
@@ -1494,6 +1594,8 @@ var TEXTES = {
   "initiales_diff": "Этот результат набран с инициалами {}, а у вашей карты инициалы {}. Забрать его может только карта {} этого pincab.",
   "sans_initiales": "У этого результата нет инициалов: его нельзя опубликовать.",
   "erreurs": {
+   "avatar_invalide": "Это изображение не читается. Выбери PNG, JPEG, GIF, WebP или AVIF.",
+   "avatar_trop_lourde": "Изображение слишком большое (максимум 1,2 МБ). Выбери поменьше.",
    "qr_illisible": "Это не действительный QR-код PincabOS.",
    "signature_invalide": "QR-код отклонён: он создан не pincab PincabOS.",
    "pincab_inconnu": "Этот pincab не зарегистрирован.",
@@ -1547,6 +1649,16 @@ var TEXTES = {
   "retour_page": "Вернуться на предыдущую страницу",
   "pseudo_modifier": "Изменить псевдоним",
   "pseudo_enregistre": "Псевдоним сохранён.",
+  "avatar_titre": "Изображение профиля",
+  "avatar_aide": "PNG, JPEG, GIF, WebP или AVIF (анимированные GIF сохраняют анимацию). Оно показывается рядом с твоим псевдонимом на сайте и на пинкабах.",
+  "avatar_choisir": "Выбрать изображение",
+  "avatar_retirer": "Убрать изображение",
+  "avatar_envoi": "Отправка изображения…",
+  "avatar_enregistre": "Изображение сохранено.",
+  "avatar_retiree": "Изображение убрано.",
+  "admin_avatars_titre": "Изображения профилей",
+  "admin_avatars_aide": "Публикуются сразу. Убери шокирующее или неверное изображение.",
+  "admin_avatar_retirer": "Убрать изображение",
   "delier": "Отвязать",
   "delier_confirme": "Отвязать этот pincab? Прежние результаты останутся в таблицах.",
   "compte_supprimer": "Удалить мой аккаунт",
@@ -1648,6 +1760,8 @@ var TEXTES = {
   "initiales_diff": "سُجلت هذه النتيجة بالأحرف الأولى {}، وبطاقتك تحمل الأحرف الأولى {}. لا يمكن استردادها إلا ببطاقة {} على هذا الـ pincab.",
   "sans_initiales": "هذه النتيجة بلا أحرف أولى: لا يمكن نشرها.",
   "erreurs": {
+   "avatar_invalide": "لا يمكن قراءة هذه الصورة. اختر PNG أو JPEG أو GIF أو WebP أو AVIF.",
+   "avatar_trop_lourde": "الصورة كبيرة جداً (1.2 ميغابايت كحد أقصى). اختر صورة أصغر.",
    "qr_illisible": "رمز QR هذا ليس رمز PincabOS صالحًا.",
    "signature_invalide": "تم رفض رمز QR: لم يُنشأ بواسطة pincab يعمل بـ PincabOS.",
    "pincab_inconnu": "هذا الـ pincab غير مسجّل.",
@@ -1701,6 +1815,16 @@ var TEXTES = {
   "retour_page": "العودة إلى الصفحة السابقة",
   "pseudo_modifier": "تغيير الاسم المستعار",
   "pseudo_enregistre": "تم حفظ الاسم المستعار.",
+  "avatar_titre": "صورة الملف الشخصي",
+  "avatar_aide": "PNG أو JPEG أو GIF أو WebP أو AVIF (تحتفظ صور GIF المتحركة بحركتها). تظهر بجانب اسمك المستعار على الموقع وعلى أجهزة الـ pincab.",
+  "avatar_choisir": "اختيار صورة",
+  "avatar_retirer": "إزالة الصورة",
+  "avatar_envoi": "جارٍ إرسال الصورة…",
+  "avatar_enregistre": "تم حفظ الصورة.",
+  "avatar_retiree": "تمت إزالة الصورة.",
+  "admin_avatars_titre": "صور الملفات الشخصية",
+  "admin_avatars_aide": "تُنشر فوراً. أزل أي صورة صادمة أو خاطئة.",
+  "admin_avatar_retirer": "إزالة الصورة",
   "delier": "فك الربط",
   "delier_confirme": "فك الربط مع هذا الـ pincab؟ تبقى النتائج السابقة في الترتيب.",
   "compte_supprimer": "حذف حسابي",
@@ -2341,6 +2465,70 @@ function blocErreur(texte) {
   return el("div", { class: "bloc", style: "align-items:center;text-align:center" },
     el("span", { class: "badge erreur" }, "!"), el("div", {}, texte));
 }
+// NOUVEAU : image de profil d'un joueur (null s'il n'en a pas)
+function avatar(id, av, classe) {
+  if (!id || !av) return null;
+  return el("img", { class: "avatar" + (classe ? " " + classe : ""), alt: "", loading: "lazy",
+    src: "/api/avatar?id=" + encodeURIComponent(id) + "&v=" + encodeURIComponent(av) });
+}
+function nomAvecAvatar(id, av, texte) {
+  var image = avatar(id, av);
+  return image ? el("span", { class: "nom-avatar" }, image, el("span", {}, texte)) : texte;
+}
+// NOUVEAU : choix de l'image de profil depuis le téléphone (page « Ma carte »)
+function blocAvatar(r) {
+  var retourAvatar = el("div", { class: "petit", "aria-live": "polite" });
+  var fichier = el("input", { type: "file", accept: "image/png,image/jpeg,image/gif,image/webp,image/avif", style: "display:none" });
+  function envoyer(dataUrl) {
+    var b64 = String(dataUrl).split(",")[1] || "";
+    b64 = b64.split("+").join("-").split("/").join("_").replace(/=+$/, "");
+    retourAvatar.textContent = T.avatar_envoi;
+    api("POST", "/api/carte/avatar", { img: b64 }).then(function (x) {
+      if (!x.ok) { retourAvatar.textContent = messageErreur(x); return; }
+      retourAvatar.textContent = T.avatar_enregistre;
+      setTimeout(pageCarte, 600);
+    });
+  }
+  fichier.addEventListener("change", function () {
+    var f = fichier.files && fichier.files[0];
+    if (!f) return;
+    var lecteur = new FileReader();
+    lecteur.onload = function () {
+      // GIF / WebP / AVIF (animés ou non) pas trop lourds : envoyés tels quels, l'animation est gardée
+      if (["image/gif", "image/webp", "image/avif"].indexOf(f.type) >= 0 && f.size <= 1150000) { envoyer(lecteur.result); return; }
+      // sinon (photo, PNG, JPEG…) : recadrée au carré et réduite à 256 × 256
+      var img = new Image();
+      img.onload = function () {
+        var cote = Math.min(img.naturalWidth, img.naturalHeight);
+        var c = document.createElement("canvas");
+        c.width = 256; c.height = 256;
+        c.getContext("2d").drawImage(img, (img.naturalWidth - cote) / 2, (img.naturalHeight - cote) / 2, cote, cote, 0, 0, 256, 256);
+        var donnees = c.toDataURL("image/webp", 0.88);
+        if (donnees.indexOf("data:image/webp") !== 0) donnees = c.toDataURL("image/jpeg", 0.9);
+        envoyer(donnees);
+      };
+      img.onerror = function () { retourAvatar.textContent = t("erreurs.avatar_invalide"); };
+      img.src = lecteur.result;
+    };
+    lecteur.readAsDataURL(f);
+  });
+  var retirer = r.av ? el("button", { type: "button", class: "second", onclick: function () {
+    api("POST", "/api/carte/avatar/retirer", {}).then(function (x) {
+      if (!x.ok) { retourAvatar.textContent = messageErreur(x); return; }
+      retourAvatar.textContent = T.avatar_retiree;
+      setTimeout(pageCarte, 600);
+    });
+  } }, T.avatar_retirer) : null;
+  return el("div", { class: "bloc" },
+    el("b", {}, T.avatar_titre),
+    el("div", { class: "tete-joueur" }, avatar(r.id, r.av, "grand") || el("div", { class: "ini" }, r.initiales || "★"),
+      el("div", { class: "petit" }, T.avatar_aide)),
+    fichier,
+    el("div", { class: "deux" },
+      el("button", { type: "button", onclick: function () { fichier.click(); } }, T.avatar_choisir), retirer),
+    retourAvatar);
+}
+
 function ligneScore(rang, haut, bas, droite, lien, moi, nomTable) {
   var couleur = rang <= 5 ? COULEURS_PLACE[rang - 1] : "#8F9CC8";
   return el(lien ? "a" : "div", { class: "ligne score-rgb" + (moi ? " moi" : ""), href: lien || null },
@@ -2582,7 +2770,7 @@ function pageCarte() {
       el("div", { class: "carte-joueur" }, el("div", {},
         el("div", { style: "display:flex;justify-content:space-between;align-items:flex-start;gap:10px" },
           el("div", {}, mt(el("div", { class: "section", style: "margin:0 0 .62em" }, "PINCABOS")), mt(el("div", { style: "font-weight:800;font-size:20px" }, r.pseudo))),
-          mt(el("div", { class: "ini" }, r.initiales))),
+          el("div", { class: "tete-joueur" }, avatar(r.id, r.av), mt(el("div", { class: "ini" }, r.initiales)))),   // NOUVEAU : image
         el("div", { class: "trois" },
           el("div", {}, mi(ico("trophee", "moyenne")), mt(el("div", { class: "grand", style: "color:#FFE27A" }, String(r.stats.records))), el("div", { class: "petit" }, T.records)),
           el("div", {}, mi(ico("podium", "moyenne")), mt(el("div", { class: "grand", style: "color:#FFC83D" }, String(r.stats.podiums))), el("div", { class: "petit" }, T.tables_top3)),
@@ -2593,7 +2781,7 @@ function pageCarte() {
       blocMesBadges(r.realisations, r.recompenses),
       el("div", { class: "section" }, T.mes_scores),
       liste.length ? el("div", { class: "liste" }, liste) : el("div", { class: "vide" }, T.aucun),
-      formPseudo, blocPush, zoneLiens, zoneAutreNavigateur,
+      blocAvatar(r), formPseudo, blocPush, zoneLiens, zoneAutreNavigateur,   // NOUVEAU : image de profil
       el("div", { class: "actions" }, actionCompte,
         el("button", { type: "button", class: "second", onclick: function () {
           if (confirm(T.deconnexion_confirme)) { oublierCode(); location.href = "/"; }
@@ -2706,7 +2894,7 @@ function pageTable() {
         el("button", { type: "button", class: vue === "pincab" ? "actif" : "", onclick: function () { vue = "pincab"; charger(); } }, T.sur_pincab),
         el("button", { type: "button", class: vue === "tous" ? "actif" : "", onclick: function () { vue = "tous"; charger(); } }, T.tous_pincabs)) : null;
       var lignes = (r.lignes || []).map(function (l, i) {
-      return ligneScore(i + 1, l.initiales + "  " + l.pseudo,
+      return ligneScore(i + 1, nomAvecAvatar(l.carte_id, l.av, l.initiales + "  " + l.pseudo),   // NOUVEAU : image
         (l.pincab || "") + " · " + date(l.ajoute) + dureePartieTexte(l.duree_partie), nombre(l.score), null,
           window.INITIALES && l.initiales === window.INITIALES && codeCarte());
       });
@@ -2776,7 +2964,7 @@ function blocPodium(liste) {
     return el("a", { class: "ligne score-rgb podium-ligne", href: "/joueur?id=" + encodeURIComponent(j.carte_id) },
       el("div", { class: "rang", style: "color:" + MEDAILLES[i] + ";font-size:30px" }, String(i + 1)),
       el("div", { class: "milieu" },
-        el("b", {}, (j.initiales ? j.initiales + "  " : "") + j.pseudo),
+        el("b", {}, nomAvecAvatar(j.carte_id, j.av, (j.initiales ? j.initiales + "  " : "") + j.pseudo)),   // NOUVEAU : image
         el("span", { class: "petit" }, (j.record_score ? T.record_de_table : T.meilleur_score) + " : " + (j.table_nom || "")),
         el("span", { class: "petit" }, details),
         petitsBadges(j.realisations, j.recompenses)),
@@ -2894,7 +3082,7 @@ function pageJoueurs() {
       var succes = texteSucces(j.realisations);
       return el("a", { class: "ligne", href: "/joueur?id=" + encodeURIComponent(j.carte_id) },
         el("div", { class: "rang" }, String(i + 1)),
-        el("div", { class: "milieu" }, el("b", {}, j.pseudo + (j.initiales ? " · " + j.initiales : "")),
+        el("div", { class: "milieu" }, el("b", {}, nomAvecAvatar(j.carte_id, j.av, j.pseudo + (j.initiales ? " · " + j.initiales : ""))),   // NOUVEAU : image
           el("span", { class: "petit" }, nombre(j.nb_records || 0) + " " + T.records + " · " + nombre(j.nb_tables || 0) + " " + T.tables_jouees),
           el("span", { class: "petit" }, succes.join(" · ") || T.aucun_succes)),
         el("div", { class: "droite" }, nombre(j.meilleur || 0)));
@@ -2915,7 +3103,8 @@ function pageJoueur() {
         "/table?cle=" + encodeURIComponent(x.table_cle), false, x.table_nom);
     });
     afficher(entete(),
-      el("div", { class: "carte-joueur" }, el("div", {}, mt(el("div", { class: "ini" }, r.initiales || "★")),
+      el("div", { class: "carte-joueur" }, el("div", {},
+        el("div", { class: "tete-joueur" }, avatar(id, r.av, "grand"), mt(el("div", { class: "ini" }, r.initiales || "★"))),   // NOUVEAU : image
         el("h1", { class: "titre" }, r.pseudo),
         el("div", { class: "trois" },
           el("div", {}, el("div", { class: "grand" }, nombre(r.stats.scores)), el("div", { class: "petit" }, T.scores)),
@@ -2956,16 +3145,35 @@ function pageAdmin() {
             el("button", { type: "button", class: pc.approuve ? "second" : "", onclick: function () { maj(!pc.approuve, pc.bloque); } }, pc.approuve ? T.retirer : T.approuver),
             el("button", { type: "button", class: "second", onclick: function () { maj(pc.approuve, !pc.bloque); } }, pc.bloque ? T.debloquer : T.bloquer))));
       });
-      chargerSuspects();
+      chargerSuspects(chargerAvatars);   // NOUVEAU : puis les images de profil
+    });
+  }
+  // NOUVEAU : images de profil publiées (tout de suite) : l'administrateur peut en retirer une
+  function chargerAvatars() {
+    api("GET", "/api/admin/avatars").then(function (r) {
+      if (!r.ok) return;
+      ajouter(zone, [el("div", { class: "section" }, T.admin_avatars_titre + " (" + r.avatars.length + ")"),
+        el("div", { class: "petit" }, T.admin_avatars_aide)]);
+      if (!r.avatars.length) { ajouter(zone, el("div", { class: "vide" }, T.aucun)); return; }
+      r.avatars.forEach(function (x) {
+        ajouter(zone, el("div", { class: "bloc", style: "padding:12px;flex-direction:row;align-items:center;gap:12px" },
+          avatar(x.carte_id, x.av, "grand"),
+          el("div", { style: "flex:1;min-width:0" }, el("b", {}, x.pseudo + " (" + x.initiales + ")"),
+            el("div", { class: "petit" }, date(x.maj))),
+          el("button", { type: "button", class: "second", onclick: function () {
+            if (!confirm(T.admin_avatar_retirer + " ?")) return;
+            api("POST", "/api/admin/avatar/retirer", { id: x.carte_id }).then(charger);
+          } }, T.admin_avatar_retirer)));
+      });
     });
   }
   // NOUVEAU : scores mis de côté par la vérification automatique (accepter / refuser)
-  function chargerSuspects() {
+  function chargerSuspects(suite) {
     api("GET", "/api/admin/suspects").then(function (r) {
       if (!r.ok) return;
       ajouter(zone, [el("div", { class: "section" }, T.suspects_titre + " (" + r.suspects.length + ")"),
         el("div", { class: "petit" }, T.suspects_aide)]);   // CORRECTIF : ajouter() prend une liste
-      if (!r.suspects.length) { ajouter(zone, el("div", { class: "vide" }, T.aucun_suspect)); return; }
+      if (!r.suspects.length) { ajouter(zone, el("div", { class: "vide" }, T.aucun_suspect)); if (suite) suite(); return; }
       r.suspects.forEach(function (x) {
         function decider(accepter) { api("POST", "/api/admin/suspect", { id: x.id, accepter: accepter }).then(charger); }
         ajouter(zone, el("div", { class: "bloc", style: "padding:12px" },
@@ -2979,6 +3187,7 @@ function pageAdmin() {
             el("button", { type: "button", onclick: function () { decider(true); } }, T.accepter),
             el("button", { type: "button", class: "second", onclick: function () { decider(false); } }, T.refuser))));
       });
+      if (suite) suite();   // NOUVEAU
     });
   }
   afficher(entete(), el("h1", { class: "titre avec-ico", style: "font-size:24px;justify-content:flex-start" }, ico("reglages", "moyenne"), T.admin),
