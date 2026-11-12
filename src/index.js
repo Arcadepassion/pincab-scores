@@ -342,6 +342,12 @@ function nomNormalise(nom) { return String(nom || "").trim().toLowerCase(); }
 // Cloudflare : une seule demande à Open-Meteo par région, quel que soit le nombre de pincabs.
 const DUREE_CACHE_METEO = 900;          // s
 const DUREE_CACHE_VILLE = 7 * 86400;    // s : recherche d'une ville choisie
+// NOUVEAU : numéros des départements français, retrouvés par leur nom (sans accents ni ponctuation)
+const DEPARTEMENTS_FR = {"ain": "01", "aisne": "02", "allier": "03", "alpesdehauteprovence": "04", "alpesmaritimes": "06", "ardeche": "07", "ardennes": "08", "ariege": "09", "aube": "10", "aude": "11", "aveyron": "12", "basrhin": "67", "bouchesdurhone": "13", "calvados": "14", "cantal": "15", "charente": "16", "charentemaritime": "17", "cher": "18", "correze": "19", "corsedusud": "2A", "cotedor": "21", "cotesdarmor": "22", "creuse": "23", "deuxsevres": "79", "dordogne": "24", "doubs": "25", "drome": "26", "essonne": "91", "eure": "27", "eureetloir": "28", "finistere": "29", "gard": "30", "gers": "32", "gironde": "33", "guadeloupe": "971", "guyane": "973", "hautecorse": "2B", "hautegaronne": "31", "hauteloire": "43", "hautemarne": "52", "hautesalpes": "05", "hautesaone": "70", "hautesavoie": "74", "hautespyrenees": "65", "hautevienne": "87", "hautrhin": "68", "hautsdeseine": "92", "herault": "34", "illeetvilaine": "35", "indre": "36", "indreetloire": "37", "isere": "38", "jura": "39", "landes": "40", "lareunion": "974", "loire": "42", "loireatlantique": "44", "loiret": "45", "loiretcher": "41", "lot": "46", "lotetgaronne": "47", "lozere": "48", "maineetloire": "49", "manche": "50", "marne": "51", "martinique": "972", "mayenne": "53", "mayotte": "976", "metropoledelyon": "69", "meurtheetmoselle": "54", "meuse": "55", "morbihan": "56", "moselle": "57", "nievre": "58", "nord": "59", "oise": "60", "orne": "61", "paris": "75", "pasdecalais": "62", "puydedome": "63", "pyreneesatlantiques": "64", "pyreneesorientales": "66", "reunion": "974", "rhone": "69", "saoneetloire": "71", "sarthe": "72", "savoie": "73", "seineetmarne": "77", "seinemaritime": "76", "seinesaintdenis": "93", "somme": "80", "tarn": "81", "tarnetgaronne": "82", "territoiredebelfort": "90", "valdemarne": "94", "valdoise": "95", "var": "83", "vaucluse": "84", "vendee": "85", "vienne": "86", "villedeparis": "75", "vosges": "88", "yonne": "89", "yvelines": "78"};
+const OUTRE_MER_FR = {"GP": "971", "MQ": "972", "GF": "973", "RE": "974", "YT": "976"};
+function cleDepartement(nom) {
+  return String(nom || "").toLowerCase().normalize("NFD").replace(/[^a-z]/g, "");
+}
 async function jsonEnCache(adresse, duree, ctx) {
   const cache = caches.default;
   const cle = new Request(adresse);
@@ -870,7 +876,13 @@ const API = {
     const villeChoisie = String(url.searchParams.get("ville") || "").replace(/[\u0000-\u001f]/g, "").trim().slice(0, 80);
     const langue = String(url.searchParams.get("lang") || "fr").toLowerCase().replace(/[^a-z]/g, "").slice(0, 2) || "fr";
     let lat, lon, ville = "", pays = "";
-    if (villeChoisie) {
+    // NOUVEAU : ville choisie dans la liste de recherche du Setup / de la page web : position exacte
+    const latChoisie = Number(url.searchParams.get("lat")), lonChoisie = Number(url.searchParams.get("lon"));
+    if (url.searchParams.has("lat") && url.searchParams.has("lon") && Number.isFinite(latChoisie) &&
+        Number.isFinite(lonChoisie) && Math.abs(latChoisie) <= 90 && Math.abs(lonChoisie) <= 180) {
+      lat = latChoisie; lon = lonChoisie;
+      ville = String(url.searchParams.get("nom") || "").replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 80);
+    } else if (villeChoisie) {
       const g = await jsonEnCache("https://geocoding-api.open-meteo.com/v1/search?count=1&format=json&language=" + langue +
                                   "&name=" + encodeURIComponent(villeChoisie), DUREE_CACHE_VILLE, ctx);
       const r = g && Array.isArray(g.results) ? g.results[0] : null;
@@ -890,6 +902,34 @@ const API = {
     if (!c || typeof c.temperature_2m !== "number") return erreur("meteo_indisponible", 503);
     return json({ ok: true, ville, pays, temperature: c.temperature_2m, code: Number(c.weather_code) || 0,
                   jour: Number(c.is_day) === 1, heure: String(c.time || ""), source: "Open-Meteo.com" });
+  },
+
+  // NOUVEAU : recherche d'une ville pour la météo (Setup, page web) : jusqu'à 10 villes avec leur département
+  // (numéro et nom), leur région et leur pays, pour choisir la bonne parmi les homonymes.
+  async "GET /api/meteo/villes"(req, env, url, ctx) {
+    const q = String(url.searchParams.get("q") || "").replace(/[\u0000-\u001f]/g, "").trim().slice(0, 80);
+    const langue = String(url.searchParams.get("lang") || "fr").toLowerCase().replace(/[^a-z]/g, "").slice(0, 2) || "fr";
+    if (q.length < 2) return erreur("recherche_trop_courte");
+    const g = await jsonEnCache("https://geocoding-api.open-meteo.com/v1/search?count=10&format=json&language=" + langue +
+                                "&name=" + encodeURIComponent(q), DUREE_CACHE_VILLE, ctx);
+    const villes = (g && Array.isArray(g.results) ? g.results : []).map((r) => {
+      const cp = Array.isArray(r.postcodes) && r.postcodes.length ? String(r.postcodes[0]) : "";
+      let departement = "";
+      if (r.country_code === "FR" && cp) {
+        if (cp.startsWith("20")) departement = /sud/i.test(String(r.admin2 || "")) ? "2A" : "2B";   // Corse
+        else if (/^97/.test(cp)) departement = cp.slice(0, 3);   // outre-mer
+        else departement = cp.slice(0, 2);
+      }
+      // sans code postal : numéro retrouvé par le nom du département (ou du territoire d'outre-mer)
+      if (!departement && (r.country_code === "FR" || OUTRE_MER_FR[r.country_code])) {
+        departement = DEPARTEMENTS_FR[cleDepartement(r.admin2)] || DEPARTEMENTS_FR[cleDepartement(r.admin1)] ||
+                      OUTRE_MER_FR[r.country_code] || "";
+      }
+      return { nom: String(r.name || ""), lat: Number(r.latitude), lon: Number(r.longitude),
+               departement, nom_departement: String(r.admin2 || ""), region: String(r.admin1 || ""),
+               pays: String(r.country_code || ""), nom_pays: String(r.country || ""), code_postal: cp };
+    }).filter((v) => v.nom && Number.isFinite(v.lat) && Number.isFinite(v.lon));
+    return json({ ok: true, villes });
   },
 
   async "GET /api/podium"(req, env) {
