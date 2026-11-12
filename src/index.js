@@ -336,6 +336,33 @@ async function assurerTableWheels(env) {
 }
 function nomNormalise(nom) { return String(nom || "").trim().toLowerCase(); }
 
+// NOUVEAU : météo pour les pincabs (aucun réglage chez l'utilisateur). La région vient de Cloudflare (ville
+// déduite de la connexion internet, rien n'est enregistré) ou d'une ville choisie dans le Setup ; les données
+// viennent d'Open-Meteo (gratuit, sans clé, licence CC BY 4.0). Chaque réponse est gardée 15 minutes par
+// Cloudflare : une seule demande à Open-Meteo par région, quel que soit le nombre de pincabs.
+const DUREE_CACHE_METEO = 900;          // s
+const DUREE_CACHE_VILLE = 7 * 86400;    // s : recherche d'une ville choisie
+async function jsonEnCache(adresse, duree, ctx) {
+  const cache = caches.default;
+  const cle = new Request(adresse);
+  let reponse = await cache.match(cle);
+  if (!reponse) {
+    let brut;
+    try {
+      brut = await fetch(adresse, { headers: { "user-agent": "PincabOS-Scores" } });
+    } catch (e) {
+      return null;
+    }
+    if (!brut.ok) return null;
+    reponse = new Response(await brut.text(), { headers: { "content-type": "application/json",
+                                                           "cache-control": "public, max-age=" + duree } });
+    const copie = reponse.clone();
+    if (ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(cache.put(cle, copie));
+    else await cache.put(cle, copie);
+  }
+  try { return await reponse.json(); } catch (e) { return null; }
+}
+
 // NOUVEAU : images de profil des joueurs (choisies dans le Setup du pincab ou sur la page « Ma carte » du
 // téléphone). Une image par profil, publiée tout de suite ; l'administrateur peut la retirer depuis /admin.
 const TAILLE_MAX_AVATAR = 1200000;   // octets (PincabOS envoie 256 × 256 px ; un GIF animé de téléphone peut être plus lourd)
@@ -837,6 +864,34 @@ async function nettoyerAnciensComptesSupprimes(env) {
 // ------------------------------------------------------------------ API
 const API = {
   // NOUVEAU : podium des 3 meilleurs joueurs et champions du jour / de la semaine / du mois / de l'année
+  // NOUVEAU : météo du pincab qui demande : {ok, ville, pays, temperature (°C), code (WMO), jour}.
+  // ?ville=Lyon pour une ville choisie dans le Setup ; ?lang=fr pour le nom de la ville trouvée.
+  async "GET /api/meteo"(req, env, url, ctx) {
+    const villeChoisie = String(url.searchParams.get("ville") || "").replace(/[\u0000-\u001f]/g, "").trim().slice(0, 80);
+    const langue = String(url.searchParams.get("lang") || "fr").toLowerCase().replace(/[^a-z]/g, "").slice(0, 2) || "fr";
+    let lat, lon, ville = "", pays = "";
+    if (villeChoisie) {
+      const g = await jsonEnCache("https://geocoding-api.open-meteo.com/v1/search?count=1&format=json&language=" + langue +
+                                  "&name=" + encodeURIComponent(villeChoisie), DUREE_CACHE_VILLE, ctx);
+      const r = g && Array.isArray(g.results) ? g.results[0] : null;
+      if (!r) return erreur("ville_inconnue", 404);
+      lat = Number(r.latitude); lon = Number(r.longitude); ville = String(r.name || villeChoisie); pays = String(r.country_code || "");
+    } else {
+      const cf = req.cf || {};
+      lat = Number(cf.latitude); lon = Number(cf.longitude);
+      ville = String(cf.city || ""); pays = String(cf.country || "");
+    }
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return erreur("position_inconnue", 404);
+    // arrondi à ~5 km : les pincabs d'une même région partagent la même réponse gardée en mémoire
+    const la = (Math.round(lat * 20) / 20).toFixed(2), lo = (Math.round(lon * 20) / 20).toFixed(2);
+    const m = await jsonEnCache("https://api.open-meteo.com/v1/forecast?latitude=" + la + "&longitude=" + lo +
+                                "&current=temperature_2m,weather_code,is_day&timezone=auto", DUREE_CACHE_METEO, ctx);
+    const c = m && m.current;
+    if (!c || typeof c.temperature_2m !== "number") return erreur("meteo_indisponible", 503);
+    return json({ ok: true, ville, pays, temperature: c.temperature_2m, code: Number(c.weather_code) || 0,
+                  jour: Number(c.is_day) === 1, heure: String(c.time || ""), source: "Open-Meteo.com" });
+  },
+
   async "GET /api/podium"(req, env) {
     await attribuerRecompenses(env);
     const maintenantMs = Date.now();
