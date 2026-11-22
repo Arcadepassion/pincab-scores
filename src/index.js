@@ -185,11 +185,50 @@ function verifierScore(d) {
 }
 
 // ------------------------------------------------------------------ cartes joueurs
-async function carteDe(env, req) {
+// NOUVEAU : accepterCleSysteme = true -> accepte aussi la clé donnée à un autre système (pincab, PC portable…)
+// quand le joueur y a ajouté son profil existant (QR « Ajouter un profil existant »). Cette clé ne sert qu'à
+// ce système : la carte renvoyée porte alors « cle_pincab » (id du système). Par défaut, seule la vraie carte
+// (code du téléphone) est acceptée : supprimer le compte, changer le pseudo, lier… restent réservés au joueur.
+async function carteDe(env, req, accepterCleSysteme = false) {
   const auth = req.headers.get("authorization") || "";
   const code = normaliserCode(auth.replace(/^Bearer\s+/i, ""));
   if (code.length !== 24) return null;
-  return await env.DB.prepare("SELECT * FROM cartes WHERE jeton_hash = ?").bind(await sha256(code)).first();
+  const empreinte = await sha256(code);
+  const carte = await env.DB.prepare("SELECT * FROM cartes WHERE jeton_hash = ?").bind(empreinte).first();
+  if (carte || !accepterCleSysteme) return carte;
+  await assurerImports(env);
+  return await env.DB.prepare(
+    `SELECT c.*, l.pincab_id AS cle_pincab FROM liens l JOIN cartes c ON c.id = l.carte_id
+      WHERE l.jeton_hash = ?`).bind(empreinte).first();
+}
+
+// NOUVEAU : profil existant ajouté à un autre système. Chaque système reçoit SA clé (empreinte gardée dans
+// liens.jeton_hash) : le code de la carte ne quitte jamais le téléphone, et « Délier » efface la clé avec le lien.
+// imports_attente : clé en attente que le système la récupère (une seule fois, effacée au bout de 15 min).
+const DUREE_IMPORT_ATTENTE_MS = 15 * 60 * 1000;
+let importsPrets = false;
+async function assurerImports(env) {
+  if (importsPrets) return;
+  try {
+    await env.DB.prepare("ALTER TABLE liens ADD COLUMN jeton_hash TEXT").run();
+  } catch (e) {
+    if (!/duplicate column/i.test(String(e?.message || e))) throw e;   // colonne déjà là : normal
+  }
+  await env.DB.batch([
+    env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS liens_jeton ON liens (jeton_hash)"),
+    env.DB.prepare(
+      `CREATE TABLE IF NOT EXISTS imports_attente (pincab_id TEXT NOT NULL, demande TEXT NOT NULL,
+         carte_id TEXT NOT NULL, code TEXT NOT NULL, cree_ms INTEGER NOT NULL, PRIMARY KEY (pincab_id, demande))`),
+  ]);
+  importsPrets = true;
+}
+
+// NOUVEAU : QR « Ajouter un profil existant » : {k: "importer", pc, x: expiration, d: numéro de la demande}
+function problemeQRImport(d) {
+  const t = Math.floor(Date.now() / 1000), x = Number(d.x || 0);
+  if (!(x >= t && x - t <= DUREE_LIEN_MAX)) return "qr_expire";
+  if (typeof d.d !== "string" || !/^[A-Za-z0-9_-]{12,40}$/.test(d.d)) return "qr_illisible";
+  return "";
 }
 
 async function rangs(env, tableCle, pincabId, score) {
@@ -841,10 +880,11 @@ async function effacerCartes(env, ids) {
   await assurerTableRecompenses(env);
   await assurerTableMissions(env);
   await assurerTableAvatars(env);   // NOUVEAU : l'image de profil part avec le profil
+  await assurerImports(env);        // NOUVEAU : clés des autres systèmes en attente
   const ops = [];
   for (const id of ids) {
     for (const table of ["scores", "scores_suspects", "score_notifications", "liens", "push_subscriptions",
-                         "badges_obtenus", "recompenses", "missions_reussies", "avatars"]) {
+                         "badges_obtenus", "recompenses", "missions_reussies", "avatars", "imports_attente"]) {
       ops.push(env.DB.prepare(`DELETE FROM ${table} WHERE carte_id = ?`).bind(id));
     }
     ops.push(env.DB.prepare("DELETE FROM cartes WHERE id = ?").bind(id));
@@ -1516,7 +1556,8 @@ const API = {
   // NOUVEAU : le Setup vérifie que ses profils existent encore (supprimés depuis le téléphone ?).
   // Réponse : {ok, existe} ; « existe: false » = le code ne correspond plus à aucun profil.
   async "POST /api/carte/existe"(req, env) {
-    const carte = await carteDe(env, req);
+    // NOUVEAU : clé d'un autre système acceptée ; « existe: false » aussi quand le joueur a délié ce système
+    const carte = await carteDe(env, req, true);
     const existe = !!carte && carte.pseudo !== "Joueur supprimé";
     return json({ ok: true, existe, av: existe ? await versionAvatar(env, carte.id) : null });   // NOUVEAU : image
   },
@@ -1524,7 +1565,7 @@ const API = {
   // NOUVEAU : image de profil envoyée par le joueur (page « Ma carte ») ou par le Setup de son pincab.
   // Corps : {img: base64url}. PNG, JPEG, GIF, WebP ou AVIF, 1,2 Mo maximum. Publiée tout de suite.
   async "POST /api/carte/avatar"(req, env) {
-    const carte = await carteDe(env, req);
+    const carte = await carteDe(env, req, true);   // NOUVEAU : aussi depuis un système où le profil a été ajouté
     if (!carte || carte.pseudo === "Joueur supprimé") return erreur("carte_requise", 401);
     const corps = await lireJson(req);
     let octets;
@@ -1547,7 +1588,7 @@ const API = {
 
   // NOUVEAU : le joueur (ou le Setup) retire son image de profil
   async "POST /api/carte/avatar/retirer"(req, env) {
-    const carte = await carteDe(env, req);
+    const carte = await carteDe(env, req, true);   // NOUVEAU : aussi depuis un système où le profil a été ajouté
     if (!carte) return erreur("carte_requise", 401);
     await assurerTableAvatars(env);
     await env.DB.prepare("DELETE FROM avatars WHERE carte_id = ?").bind(carte.id).run();
@@ -1580,13 +1621,19 @@ const API = {
   },
 
   // Délier un pincab n'efface aucun score déjà associé au joueur.
+  // NOUVEAU : aussi depuis le Setup d'un système où le profil a été ajouté (« Retirer de ce pincab ») : sa clé
+  // ne peut délier QUE ce système. La clé du système disparaît avec le lien.
   async "POST /api/lien/delier"(req, env) {
-    const carte = await carteDe(env, req);
+    const carte = await carteDe(env, req, true);
     if (!carte) return erreur("carte_requise", 401);
     const corps = await lireJson(req);
     const pincabId = String(corps.pincab_id || "");
     if (!pincabId) return erreur("pincab_inconnu");
+    if (carte.cle_pincab && carte.cle_pincab !== pincabId) return erreur("acces_limite", 403);
     await env.DB.prepare("DELETE FROM liens WHERE carte_id = ? AND pincab_id = ?")
+      .bind(carte.id, pincabId).run();
+    await assurerImports(env);
+    await env.DB.prepare("DELETE FROM imports_attente WHERE carte_id = ? AND pincab_id = ?")
       .bind(carte.id, pincabId).run();
     return json({ ok: true });
   },
@@ -1610,6 +1657,81 @@ const API = {
     await env.DB.prepare("INSERT INTO liens (carte_id, pincab_id, initiales, cree) VALUES (?, ?, ?, ?)")
       .bind(carte.id, qr.pincab.id, carte.initiales, maintenant()).run();
     return json({ ok: true, pincab: qr.pincab.nom, initiales: carte.initiales });
+  },
+
+  // NOUVEAU : « Ajouter un profil existant » (QR affiché par le Setup, le Frontend ou la page web d'un système).
+  // 1. Le téléphone (avec sa carte) vérifie le QR : nom du système, et initiales libres sur ce système ?
+  async "POST /api/importer/verifier"(req, env) {
+    const carte = await carteDe(env, req);
+    if (!carte || carte.pseudo === "Joueur supprimé") return erreur("carte_requise", 401);
+    const corps = await lireJson(req);
+    const qr = await lireQR(env, corps.p, corps.g, "importer");
+    if (qr.erreur) return erreur(qr.erreur);
+    const probleme = problemeQRImport(qr.donnees);
+    if (probleme) return erreur(probleme);
+    const pris = await env.DB.prepare("SELECT 1 FROM liens WHERE pincab_id = ? AND initiales = ? AND carte_id <> ?")
+      .bind(qr.pincab.id, carte.initiales, carte.id).first();
+    if (pris) return erreur("initiales_prises", 409, { initiales: carte.initiales });
+    return json({ ok: true, pincab: qr.pincab.nom, pseudo: carte.pseudo, initiales: carte.initiales });
+  },
+
+  // 2. Le joueur accepte : la carte est liée au système, qui reçoit sa propre clé (récupérée à l'étape 3).
+  async "POST /api/importer"(req, env) {
+    const carte = await carteDe(env, req);
+    if (!carte || carte.pseudo === "Joueur supprimé") return erreur("carte_requise", 401);
+    const corps = await lireJson(req);
+    const qr = await lireQR(env, corps.p, corps.g, "importer");
+    if (qr.erreur) return erreur(qr.erreur);
+    const d = qr.donnees;
+    const probleme = problemeQRImport(d);
+    if (probleme) return erreur(probleme);
+    await assurerImports(env);
+    const demande = await env.DB.prepare("SELECT carte_id FROM imports_attente WHERE pincab_id = ? AND demande = ?")
+      .bind(qr.pincab.id, d.d).first();
+    if (demande && demande.carte_id !== carte.id) return erreur("qr_deja_utilise", 409);
+    if (demande) return json({ ok: true, deja: true, pincab: qr.pincab.nom, initiales: carte.initiales });
+    const pris = await env.DB.prepare("SELECT 1 FROM liens WHERE pincab_id = ? AND initiales = ? AND carte_id <> ?")
+      .bind(qr.pincab.id, carte.initiales, carte.id).first();
+    if (pris) return erreur("initiales_prises", 409, { initiales: carte.initiales });
+    const cle = codeCarte();
+    const maintenantMs = Date.now();
+    try {
+      await env.DB.batch([
+        env.DB.prepare("DELETE FROM imports_attente WHERE cree_ms < ?").bind(maintenantMs - DUREE_IMPORT_ATTENTE_MS),
+        env.DB.prepare(
+          `INSERT INTO liens (carte_id, pincab_id, initiales, cree, jeton_hash) VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(carte_id, pincab_id) DO UPDATE SET jeton_hash = excluded.jeton_hash`)
+          .bind(carte.id, qr.pincab.id, carte.initiales, maintenant(), await sha256(normaliserCode(cle))),
+        env.DB.prepare("INSERT INTO imports_attente (pincab_id, demande, carte_id, code, cree_ms) VALUES (?, ?, ?, ?, ?)")
+          .bind(qr.pincab.id, d.d, carte.id, cle, maintenantMs),
+      ]);
+    } catch (e) {
+      return erreur("qr_deja_utilise", 409);       // deux téléphones au même instant
+    }
+    console.log(JSON.stringify({ event: "profil_ajoute", carte: carte.id, pincab: qr.pincab.id }));
+    return json({ ok: true, pincab: qr.pincab.nom, initiales: carte.initiales });
+  },
+
+  // 3. Le système (demande signée avec sa clé) récupère le profil et SA clé, une seule fois.
+  async "POST /api/pincab/importer/attente"(req, env) {
+    const corps = await lireJson(req);
+    const qr = await lireQR(env, corps.p, corps.g, "importer_attente");
+    if (qr.erreur) return erreur(qr.erreur);
+    const t = Math.floor(Date.now() / 1000), x = Number(qr.donnees.x || 0);
+    if (!(x >= t && x - t <= 600)) return erreur("qr_expire");
+    const demande = String(qr.donnees.d || "");
+    await assurerImports(env);
+    const r = await env.DB.prepare(
+      `SELECT i.carte_id, i.code, c.pseudo, c.initiales FROM imports_attente i JOIN cartes c ON c.id = i.carte_id
+        WHERE i.pincab_id = ? AND i.demande = ?`).bind(qr.pincab.id, demande).first();
+    if (!r || !r.code) return json({ ok: true, pret: false, deja: !!r });
+    // la clé n'est donnée qu'une fois (le code en clair est effacé ; la ligne reste jusqu'au ménage des 15 min)
+    const maj = await env.DB.prepare(
+      "UPDATE imports_attente SET code = '' WHERE pincab_id = ? AND demande = ? AND code <> ''")
+      .bind(qr.pincab.id, demande).run();
+    if (!maj?.meta?.changes) return json({ ok: true, pret: false, deja: true });
+    return json({ ok: true, pret: true, id: r.carte_id, pseudo: r.pseudo, initiales: r.initiales, code: r.code,
+                  av: await versionAvatar(env, r.carte_id) });
   },
 
   // Classement d'une table : meilleur score de chaque joueur.
@@ -1752,7 +1874,7 @@ function adminOk(req, env) {
 }
 
 // ------------------------------------------------------------------ pages
-const PAGES = new Set(["/", "/s", "/lier", "/carte", "/table", "/joueurs", "/joueur", "/admin"]);
+const PAGES = new Set(["/", "/s", "/lier", "/importer", "/carte", "/table", "/joueurs", "/joueur", "/admin"]);   // NOUVEAU : /importer
 const ENTETES_PAGE = {
   "content-type": "text/html; charset=utf-8",
   "content-security-policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
